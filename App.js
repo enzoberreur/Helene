@@ -21,7 +21,7 @@ export default function App() {
     // Écouter les changements d'authentification
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('Auth event:', event);
-      
+
       if (session?.user) {
         // Récupérer le profil de l'utilisateur
         const { data: profile } = await supabase
@@ -29,7 +29,7 @@ export default function App() {
           .select('*')
           .eq('id', session.user.id)
           .single();
-        
+
         setUser({ ...session.user, ...profile });
         setCurrentScreen('home');
       } else {
