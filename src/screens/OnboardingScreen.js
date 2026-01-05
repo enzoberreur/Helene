@@ -394,7 +394,7 @@ const NOTIFICATION_TIMING = [
               onPress={handleBack}
               style={styles.backButton}
             >
-              <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
+              <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <Text style={styles.stepText}>
               {step === 0 ? t.onboarding.createAccount : `${t.onboarding.step} ${step}/6`}
@@ -1140,7 +1140,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontFamily: 'Times New Roman',
     fontStyle: 'italic',
-    color: COLORS.secondary,
+    color: COLORS.text,
     fontWeight: '400',
     marginBottom: SPACING.sm,
   },
@@ -1154,7 +1154,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 15,
-    color: COLORS.secondary,
+    color: COLORS.text,
     fontWeight: '600',
     marginBottom: SPACING.sm,
   },
@@ -1172,7 +1172,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md + 2,
     paddingHorizontal: SPACING.lg,
     fontSize: 16,
-    color: COLORS.secondary,
+    color: COLORS.text,
   },
   passwordContainer: {
     position: 'relative',
@@ -1186,7 +1186,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.lg,
     paddingRight: 50,
     fontSize: 16,
-    color: COLORS.secondary,
+    color: COLORS.text,
   },
   eyeIcon: {
     position: 'absolute',
@@ -1245,7 +1245,7 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.secondary,
+    color: COLORS.text,
     marginBottom: SPACING.xs / 2,
   },
   optionTitleSelected: {
@@ -1305,7 +1305,7 @@ const styles = StyleSheet.create({
   },
   checkboxLabel: {
     fontSize: 14,
-    color: COLORS.secondary,
+    color: COLORS.text,
     flex: 1,
     lineHeight: 20,
   },
@@ -1315,7 +1315,7 @@ const styles = StyleSheet.create({
   symptomCategoryTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: COLORS.secondary,
+    color: COLORS.text,
     marginBottom: SPACING.md,
   },
   symptomRow: {
@@ -1323,7 +1323,7 @@ const styles = StyleSheet.create({
   },
   symptomLabel: {
     fontSize: 14,
-    color: COLORS.secondary,
+    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   intensityButtons: {
@@ -1365,7 +1365,7 @@ const styles = StyleSheet.create({
   },
   switchLabel: {
     fontSize: 15,
-    color: COLORS.secondary,
+    color: COLORS.text,
   },
   textArea: {
     backgroundColor: COLORS.white,
@@ -1375,7 +1375,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
     fontSize: 16,
-    color: COLORS.secondary,
+    color: COLORS.text,
     minHeight: 80,
     textAlignVertical: 'top',
   },
@@ -1388,7 +1388,7 @@ const styles = StyleSheet.create({
   privacyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.secondary,
+    color: COLORS.text,
     marginBottom: SPACING.sm,
   },
   privacyText: {
@@ -1403,7 +1403,7 @@ const styles = StyleSheet.create({
   },
   consentLabel: {
     fontSize: 14,
-    color: COLORS.secondary,
+    color: COLORS.text,
     flex: 1,
     lineHeight: 20,
   },

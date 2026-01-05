@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,23 +7,14 @@ import {
   SafeAreaView,
   ScrollView,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { LanguageContext } from '../../App';
-
-const COLORS = {
-  primary: '#FF6B9D',
-  primaryLight: '#FFF0F7',
-  secondary: '#C8A2C8',
-  background: '#FFFFFF',
-  backgroundLight: '#F3F4F6',
-  text: '#1F2937',
-  textLight: '#6B7280',
-  border: '#E5E7EB',
-  success: '#10B981',
-  warning: '#F59E0B',
-};
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
+import { generateWeeklyInsights } from '../utils/insightsGenerator';
+import { hapticFeedback } from '../utils/hapticFeedback';
 
 export default function HomeScreen({ navigation }) {
   const { t } = useContext(LanguageContext);
@@ -34,9 +25,37 @@ export default function HomeScreen({ navigation }) {
     totalLogs: 0,
     topSymptom: null,
   });
+  const [insights, setInsights] = useState([]);
+  
+  // Animations pour empty state
+  const bounceAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadStats();
+    
+    // Animation pour empty state
+    Animated.parallel([
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(bounceAnim, {
+            toValue: -10,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(bounceAnim, {
+            toValue: 0,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      ),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   const loadStats = async () => {
@@ -44,26 +63,28 @@ export default function HomeScreen({ navigation }) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      // Charger 14 jours pour comparer les semaines
+      const fourteenDaysAgo = new Date();
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
 
       const { data: logs, error } = await supabase
         .from('daily_logs')
         .select('*')
         .eq('user_id', user.id)
-        .gte('log_date', sevenDaysAgo.toISOString().split('T')[0])
+        .gte('log_date', fourteenDaysAgo.toISOString().split('T')[0])
         .order('log_date', { ascending: false });
 
       if (error) throw error;
 
       if (logs && logs.length > 0) {
-        const avgMood = logs.reduce((sum, log) => sum + (log.mood || 0), 0) / logs.length;
-        const avgSleep = logs.reduce((sum, log) => sum + (log.sleep_quality || 0), 0) / logs.length;
+        const currentWeekLogs = logs.slice(0, 7);
+        const avgMood = currentWeekLogs.reduce((sum, log) => sum + (log.mood || 0), 0) / currentWeekLogs.length;
+        const avgSleep = currentWeekLogs.reduce((sum, log) => sum + (log.sleep_quality || 0), 0) / currentWeekLogs.length;
 
         const symptomCounts = {};
         const symptoms = ['hot_flashes', 'night_sweats', 'headaches', 'joint_pain', 'fatigue', 'anxiety', 'irritability', 'brain_fog', 'low_mood'];
         
-        logs.forEach(log => {
+        currentWeekLogs.forEach(log => {
           symptoms.forEach(symptom => {
             if (log[symptom] && log[symptom] > 0) {
               symptomCounts[symptom] = (symptomCounts[symptom] || 0) + 1;
@@ -78,9 +99,13 @@ export default function HomeScreen({ navigation }) {
         setStats({
           avgMood: avgMood.toFixed(1),
           avgSleep: avgSleep.toFixed(1),
-          totalLogs: logs.length,
+          totalLogs: currentWeekLogs.length,
           topSymptom,
         });
+
+        // Générer les insights
+        const weeklyInsights = generateWeeklyInsights(logs);
+        setInsights(weeklyInsights);
       }
     } catch (error) {
       console.error('Erreur chargement stats:', error);
@@ -133,101 +158,165 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Bonjour 👋</Text>
+          <View style={styles.headerContent}>
+            <Text style={styles.greeting}>Bonjour</Text>
             <Text style={styles.subtitle}>Comment allez-vous aujourd'hui ?</Text>
           </View>
           <TouchableOpacity
             style={styles.profileButton}
             onPress={() => navigation.navigate('profile')}
           >
-            <Ionicons name="person-circle-outline" size={28} color={COLORS.primary} />
+            <Ionicons name="person-outline" size={22} color={COLORS.text} />
           </TouchableOpacity>
         </View>
 
-        <View style={styles.section}>
+        {/* Action principale */}
+        <View style={styles.mainSection}>
           <TouchableOpacity
             style={styles.primaryCard}
-            onPress={() => navigation.navigate('checkin')}
+            onPress={() => {
+              hapticFeedback.medium();
+              navigation.navigate('checkin');
+            }}
+            activeOpacity={0.8}
           >
-            <View style={styles.cardIconContainer}>
-              <Ionicons name="clipboard-outline" size={28} color="#FFFFFF" />
+            <View style={styles.primaryCardHeader}>
+              <View style={styles.cardIconContainer}>
+                <Ionicons name="create-outline" size={24} color={COLORS.white} />
+              </View>
+              <Ionicons name="arrow-forward" size={22} color="rgba(255,255,255,0.8)" />
             </View>
-            <View style={styles.primaryCardContent}>
-              <Text style={styles.primaryCardTitle}>Check-in quotidien</Text>
-              <Text style={styles.primaryCardSubtitle}>
-                Enregistrez vos symptômes et votre humeur
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.secondaryCard}
-            onPress={() => navigation.navigate('chat')}
-          >
-            <View style={styles.cardIconContainer}>
-              <Ionicons name="chatbubbles-outline" size={28} color={COLORS.primary} />
-            </View>
-            <View style={styles.secondaryCardContent}>
-              <Text style={styles.secondaryCardTitle}>Discuter avec Helene</Text>
-              <Text style={styles.secondaryCardSubtitle}>
-                Posez vos questions sur la ménopause
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={24} color={COLORS.primary} />
+            <Text style={styles.primaryCardTitle}>Check-in quotidien</Text>
+            <Text style={styles.primaryCardSubtitle}>
+              Suivez votre bien-être jour après jour
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Cette semaine</Text>
+        {/* Statistiques */}
+        <View style={styles.statsSection}>
+          <View style={styles.statsSectionHeader}>
+            <Text style={styles.sectionTitle}>Cette semaine</Text>
+            {stats.totalLogs > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  hapticFeedback.light();
+                  navigation.navigate('trends');
+                }}
+                style={styles.viewAllButton}
+              >
+                <Text style={styles.viewAllText}>Voir plus</Text>
+                <Ionicons name="chevron-forward" size={18} color={COLORS.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
           
           {stats.totalLogs === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons name="bar-chart-outline" size={64} color={COLORS.textLight} />
+            <Animated.View 
+              style={[
+                styles.emptyState,
+                { 
+                  opacity: fadeAnim,
+                  transform: [{ translateY: bounceAnim }]
+                }
+              ]}
+            >
+              <View style={styles.emptyStateIconContainer}>
+                <View style={styles.emptyStateIconCircle}>
+                  <Ionicons name="rocket" size={48} color={COLORS.primary} />
+                </View>
+              </View>
+              <Text style={styles.emptyStateTitle}>Commencez votre voyage</Text>
               <Text style={styles.emptyStateText}>
-                Commencez à enregistrer vos check-ins pour voir vos statistiques
+                Enregistrez votre premier check-in pour découvrir des insights personnalisés sur votre bien-être
               </Text>
-            </View>
+              <TouchableOpacity
+                style={styles.emptyStateCTA}
+                onPress={() => {
+                  hapticFeedback.medium();
+                  navigation.navigate('checkin');
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.emptyStateCTAText}>Faire mon premier check-in</Text>
+                <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
+              </TouchableOpacity>
+            </Animated.View>
           ) : (
             <>
               <View style={styles.statsGrid}>
                 <View style={styles.statCard}>
                   <Ionicons 
                     name={getMoodIcon(stats.avgMood).name} 
-                    size={36} 
+                    size={32} 
                     color={getMoodIcon(stats.avgMood).color} 
                   />
-                  <Text style={styles.statValue}>{stats.avgMood}/5</Text>
-                  <Text style={styles.statLabel}>Humeur moyenne</Text>
+                  <Text style={styles.statValue}>{stats.avgMood}</Text>
+                  <Text style={styles.statLabel}>Humeur</Text>
                 </View>
 
                 <View style={styles.statCard}>
                   <Ionicons 
                     name={getSleepIcon(stats.avgSleep).name} 
-                    size={36} 
+                    size={32} 
                     color={getSleepIcon(stats.avgSleep).color} 
                   />
-                  <Text style={styles.statValue}>{stats.avgSleep}/10</Text>
-                  <Text style={styles.statLabel}>Sommeil moyen</Text>
+                  <Text style={styles.statValue}>{stats.avgSleep}</Text>
+                  <Text style={styles.statLabel}>Sommeil</Text>
                 </View>
 
                 <View style={styles.statCard}>
-                  <Ionicons name="checkmark-circle" size={36} color={COLORS.success} />
+                  <Ionicons name="calendar" size={32} color={COLORS.primary} />
                   <Text style={styles.statValue}>{stats.totalLogs}</Text>
-                  <Text style={styles.statLabel}>Check-ins</Text>
+                  <Text style={styles.statLabel}>Jours</Text>
                 </View>
               </View>
 
+              {/* Insights automatiques */}
+              {insights.length > 0 && (
+                <View style={styles.insightsContainer}>
+                  <Text style={styles.insightsTitle}>💡 Observations cette semaine</Text>
+                  {insights.map((insight) => (
+                    <View 
+                      key={insight.id} 
+                      style={[
+                        styles.insightAutoCard,
+                        insight.type === 'positive' && styles.insightPositive,
+                        insight.type === 'warning' && styles.insightWarning,
+                      ]}
+                    >
+                      <View style={styles.insightAutoIcon}>
+                        <Ionicons 
+                          name={insight.icon} 
+                          size={20} 
+                          color={
+                            insight.type === 'positive' ? COLORS.success :
+                            insight.type === 'warning' ? COLORS.warning :
+                            COLORS.primary
+                          } 
+                        />
+                      </View>
+                      <View style={styles.insightAutoContent}>
+                        <Text style={styles.insightAutoTitle}>{insight.title}</Text>
+                        <Text style={styles.insightAutoMessage}>{insight.message}</Text>
+                      </View>
+                      <Text style={styles.insightAutoValue}>{insight.value}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
               {stats.topSymptom && (
                 <View style={styles.insightCard}>
-                  <Ionicons name="bulb-outline" size={28} color={COLORS.primary} />
+                  <View style={styles.insightIcon}>
+                    <Ionicons name="pulse" size={20} color={COLORS.primary} />
+                  </View>
                   <View style={styles.insightContent}>
-                    <Text style={styles.insightTitle}>Symptôme principal</Text>
+                    <Text style={styles.insightTitle}>Symptôme le plus fréquent</Text>
                     <Text style={styles.insightText}>
-                      {getSymptomLabel(stats.topSymptom)} - le plus fréquent cette semaine
+                      {getSymptomLabel(stats.topSymptom)}
                     </Text>
                   </View>
                 </View>
@@ -236,20 +325,47 @@ export default function HomeScreen({ navigation }) {
           )}
         </View>
 
-        <View style={styles.section}>
+        {/* Action secondaire */}
+        <View style={styles.chatSection}>
           <TouchableOpacity
-            style={styles.insightCTA}
-            onPress={() => navigation.navigate('chat')}
+            style={styles.chatCard}
+            onPress={() => {
+              hapticFeedback.light();
+              navigation.navigate('chat');
+            }}
+            activeOpacity={0.8}
           >
-            <View style={styles.insightCTAContent}>
-              <Text style={styles.insightCTATitle}>
-                Obtenez des conseils personnalisés
-              </Text>
-              <Text style={styles.insightCTASubtitle}>
-                Discutez avec Helene pour mieux comprendre vos symptômes
+            <View style={styles.chatCardContent}>
+              <View style={styles.chatIconBadge}>
+                <Ionicons name="sparkles" size={20} color={COLORS.primary} />
+              </View>
+              <Text style={styles.chatCardTitle}>Parlez à Helene</Text>
+              <Text style={styles.chatCardSubtitle}>
+                Obtenez des conseils personnalisés sur vos symptômes
               </Text>
             </View>
-            <Ionicons name="sparkles" size={32} color="#FFFFFF" />
+            <Ionicons name="arrow-forward" size={22} color={COLORS.text} />
+          </TouchableOpacity>
+
+          {/* Journal Émotionnel */}
+          <TouchableOpacity
+            style={[styles.chatCard, { marginTop: SPACING.md }]}
+            onPress={() => {
+              hapticFeedback.light();
+              navigation.navigate('journal');
+            }}
+            activeOpacity={0.8}
+          >
+            <View style={styles.chatCardContent}>
+              <View style={[styles.chatIconBadge, { backgroundColor: '#FCECEF' }]}>
+                <Ionicons name="heart" size={20} color={COLORS.primary} />
+              </View>
+              <Text style={styles.chatCardTitle}>Journal Émotionnel</Text>
+              <Text style={styles.chatCardSubtitle}>
+                Suivez vos émotions et visualisez vos tendances
+              </Text>
+            </View>
+            <Ionicons name="arrow-forward" size={22} color={COLORS.text} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -266,6 +382,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: COLORS.background,
   },
   scrollView: {
     flex: 1,
@@ -273,181 +390,331 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
+    alignItems: 'flex-start',
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xxl,
+    paddingBottom: SPACING.lg,
+    backgroundColor: COLORS.white,
+  },
+  headerContent: {
+    flex: 1,
   },
   greeting: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 38,
+    fontFamily: FONTS.heading.italic,
     color: COLORS.text,
+    letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: COLORS.textLight,
-    marginTop: 4,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.textSecondary,
+    marginTop: SPACING.sm,
+    lineHeight: 22,
   },
   profileButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: COLORS.primaryLight,
+    backgroundColor: COLORS.gray[100],
     justifyContent: 'center',
     alignItems: 'center',
   },
-  section: {
-    padding: 20,
-    paddingTop: 10,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 12,
+  mainSection: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xl,
   },
   primaryCard: {
     backgroundColor: COLORS.primary,
-    borderRadius: 16,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.xl,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 8,
     elevation: 3,
   },
-  cardIconContainer: {
-    marginRight: 16,
+  primaryCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
   },
-  primaryCardContent: {
-    flex: 1,
+  cardIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   primaryCardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
+    fontSize: 22,
+    fontFamily: FONTS.heading.italic,
+    color: COLORS.white,
+    marginBottom: SPACING.xs,
+    letterSpacing: -0.3,
   },
   primaryCardSubtitle: {
-    fontSize: 14,
-    color: '#FFFFFF',
+    fontSize: 15,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.white,
     opacity: 0.9,
+    lineHeight: 21,
   },
-  secondaryCard: {
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: 16,
-    padding: 20,
+  statsSection: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xxl,
+  },
+  statsSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: FONTS.heading.italic,
+    color: COLORS.text,
+    letterSpacing: -0.3,
+  },
+  viewAllButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    gap: 4,
   },
-  secondaryCardContent: {
-    flex: 1,
-  },
-  secondaryCardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 4,
-  },
-  secondaryCardSubtitle: {
+  viewAllText: {
     fontSize: 14,
-    color: COLORS.textLight,
+    fontFamily: FONTS.body.semibold,
+    color: COLORS.primary,
   },
   statsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
+    gap: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  insightsContainer: {
+    marginTop: SPACING.md,
+    marginBottom: SPACING.lg,
+  },
+  insightsTitle: {
+    fontSize: 16,
+    fontFamily: FONTS.body.semibold,
+    color: COLORS.text,
+    marginBottom: SPACING.md,
+  },
+  insightAutoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.primary,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  insightPositive: {
+    borderLeftColor: COLORS.success,
+    backgroundColor: '#F0FDF4',
+  },
+  insightWarning: {
+    borderLeftColor: COLORS.warning,
+    backgroundColor: '#FFFBEB',
+  },
+  insightAutoIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.sm,
+  },
+  insightAutoContent: {
+    flex: 1,
+  },
+  insightAutoTitle: {
+    fontSize: 13,
+    fontFamily: FONTS.body.semibold,
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+  insightAutoMessage: {
+    fontSize: 13,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+  },
+  insightAutoValue: {
+    fontSize: 14,
+    fontFamily: FONTS.body.bold,
+    color: COLORS.text,
   },
   statCard: {
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
     flex: 1,
-    marginHorizontal: 4,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   statValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
+    fontSize: 26,
+    fontFamily: FONTS.heading.regular,
     color: COLORS.text,
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: SPACING.sm,
+    marginBottom: SPACING.xs,
+    letterSpacing: -0.5,
   },
   statLabel: {
-    fontSize: 12,
-    color: COLORS.textLight,
+    fontSize: 11,
+    fontFamily: FONTS.body.medium,
+    color: COLORS.textSecondary,
     textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   insightCard: {
     backgroundColor: COLORS.primaryLight,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
     flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  insightIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.white,
+    justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.primary,
   },
   insightContent: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: SPACING.md,
   },
   insightTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 13,
+    fontFamily: FONTS.body.semibold,
     color: COLORS.text,
     marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   insightText: {
-    fontSize: 14,
-    color: COLORS.textLight,
+    fontSize: 15,
+    fontFamily: FONTS.body.medium,
+    color: COLORS.text,
+    lineHeight: 21,
   },
   emptyState: {
-    backgroundColor: COLORS.backgroundLight,
-    borderRadius: 12,
-    padding: 32,
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.xl,
+    padding: SPACING.xxxl,
+    alignItems: 'center',
+    marginVertical: SPACING.lg,
+    borderWidth: 2,
+    borderColor: COLORS.primaryLight,
+    borderStyle: 'dashed',
+  },
+  emptyStateIconContainer: {
+    marginBottom: SPACING.lg,
+  },
+  emptyStateIconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: COLORS.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  emptyStateTitle: {
+    fontSize: 24,
+    fontFamily: FONTS.heading.italic,
+    color: COLORS.text,
+    marginBottom: SPACING.sm,
+    textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  emptyStateText: {
+    fontSize: 15,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: SPACING.xl,
+    paddingHorizontal: SPACING.md,
+  },
+  emptyStateCTA: {
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.lg,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  emptyStateCTAText: {
+    fontSize: 16,
+    fontFamily: FONTS.body.semibold,
+    color: COLORS.white,
+  },
+  chatSection: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xxl,
+    paddingBottom: SPACING.xxl,
+  },
+  chatCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.xl,
+    flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  emptyStateText: {
-    fontSize: 16,
-    color: COLORS.textLight,
-    textAlign: 'center',
-    marginTop: 16,
-  },
-  insightCTA: {
-    backgroundColor: COLORS.secondary,
-    borderRadius: 16,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  insightCTAContent: {
+  chatCardContent: {
     flex: 1,
-    marginRight: 12,
   },
-  insightCTATitle: {
+  chatIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  chatCardTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 4,
+    fontFamily: FONTS.heading.italic,
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+    letterSpacing: -0.3,
   },
-  insightCTASubtitle: {
+  chatCardSubtitle: {
     fontSize: 14,
-    color: '#FFFFFF',
-    opacity: 0.9,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.textSecondary,
+    lineHeight: 20,
   },
 });

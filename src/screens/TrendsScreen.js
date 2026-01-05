@@ -1,0 +1,491 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Dimensions,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { LineChart, BarChart } from 'react-native-chart-kit';
+import { supabase } from '../lib/supabase';
+import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme';
+
+const { width } = Dimensions.get('window');
+
+export default function TrendsScreen({ navigation, user }) {
+  const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState(7); // 7 ou 30 jours
+  const [data, setData] = useState({
+    moodData: [],
+    sleepData: [],
+    symptomsData: [],
+    labels: [],
+  });
+
+  useEffect(() => {
+    if (user) {
+      loadTrends();
+    }
+  }, [period, user]);
+
+  const loadTrends = async () => {
+    try {
+      setLoading(true);
+      console.log('TrendsScreen: Loading trends for user', user?.id);
+      if (!user) {
+        console.log('TrendsScreen: No user found');
+        return;
+      }
+
+      const daysAgo = new Date();
+      daysAgo.setDate(daysAgo.getDate() - period);
+
+      const { data: logs, error } = await supabase
+        .from('daily_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('log_date', daysAgo.toISOString().split('T')[0])
+        .order('log_date', { ascending: true });
+
+      if (error) {
+        console.error('TrendsScreen: Error loading logs', error);
+        throw error;
+      }
+
+      console.log('TrendsScreen: Loaded', logs?.length || 0, 'logs');
+
+      if (logs && logs.length > 0) {
+        // Préparer les données pour les graphiques
+        const moodData = logs.map(log => log.mood || 0);
+        const sleepData = logs.map(log => log.sleep_quality || 0);
+        const labels = logs.map(log => {
+          const date = new Date(log.log_date);
+          return `${date.getDate()}/${date.getMonth() + 1}`;
+        });
+
+        // Compter les symptômes
+        const symptoms = ['hot_flashes', 'night_sweats', 'headaches', 'joint_pain', 'fatigue', 'anxiety', 'irritability', 'brain_fog', 'low_mood'];
+        const symptomCounts = {};
+        
+        symptoms.forEach(symptom => {
+          symptomCounts[symptom] = logs.filter(log => log[symptom] && log[symptom] > 0).length;
+        });
+
+        setData({
+          moodData,
+          sleepData,
+          symptomsData: symptomCounts,
+          labels: period === 7 ? labels : labels.filter((_, i) => i % 3 === 0), // Simplifier les labels pour 30j
+        });
+      }
+    } catch (error) {
+      console.error('Erreur chargement tendances:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getSymptomLabel = (symptom) => {
+    const labels = {
+      hot_flashes: 'Bouffées',
+      night_sweats: 'Sueurs',
+      headaches: 'Maux de tête',
+      joint_pain: 'Douleurs',
+      fatigue: 'Fatigue',
+      anxiety: 'Anxiété',
+      irritability: 'Irritabilité',
+      brain_fog: 'Brouillard',
+      low_mood: 'Humeur basse',
+    };
+    return labels[symptom] || symptom;
+  };
+
+  const chartConfig = {
+    backgroundColor: COLORS.white,
+    backgroundGradientFrom: COLORS.white,
+    backgroundGradientTo: COLORS.white,
+    decimalPlaces: 1,
+    color: (opacity = 1) => `rgba(232, 62, 115, ${opacity})`,
+    labelColor: (opacity = 1) => `rgba(74, 85, 104, ${opacity})`,
+    style: {
+      borderRadius: RADIUS.lg,
+    },
+    propsForDots: {
+      r: '4',
+      strokeWidth: '2',
+      stroke: COLORS.primary,
+    },
+    propsForBackgroundLines: {
+      strokeDasharray: '',
+      stroke: COLORS.gray[200],
+      strokeWidth: 1,
+    },
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const topSymptoms = Object.entries(data.symptomsData)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .filter(([_, count]) => count > 0);
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Tendances</Text>
+        <View style={styles.placeholder} />
+      </View>
+
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Period Selector */}
+        <View style={styles.periodSelector}>
+          <TouchableOpacity
+            style={[styles.periodButton, period === 7 && styles.periodButtonActive]}
+            onPress={() => setPeriod(7)}
+          >
+            <Text style={[styles.periodButtonText, period === 7 && styles.periodButtonTextActive]}>
+              7 jours
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.periodButton, period === 30 && styles.periodButtonActive]}
+            onPress={() => setPeriod(30)}
+          >
+            <Text style={[styles.periodButtonText, period === 30 && styles.periodButtonTextActive]}>
+              30 jours
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {data.moodData.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="analytics-outline" size={64} color={COLORS.primary} style={{ opacity: 0.3 }} />
+            <Text style={styles.emptyStateTitle}>Pas encore de données</Text>
+            <Text style={styles.emptyStateText}>
+              Commencez à enregistrer vos check-ins quotidiens pour voir vos tendances
+            </Text>
+          </View>
+        ) : (
+          <>
+            {/* Mood Chart */}
+            <View style={styles.chartSection}>
+              <Text style={styles.chartTitle}>Humeur</Text>
+              <Text style={styles.chartSubtitle}>Évolution de votre humeur sur {period} jours</Text>
+              <View style={styles.chartContainer}>
+                <LineChart
+                  data={{
+                    labels: data.labels,
+                    datasets: [{
+                      data: data.moodData,
+                    }],
+                  }}
+                  width={width - (SPACING.xl * 2)}
+                  height={200}
+                  chartConfig={chartConfig}
+                  bezier
+                  style={styles.chart}
+                  withVerticalLines={false}
+                  withHorizontalLines={true}
+                  withDots={true}
+                  withShadow={false}
+                  fromZero
+                  segments={5}
+                />
+              </View>
+            </View>
+
+            {/* Sleep Chart */}
+            <View style={styles.chartSection}>
+              <Text style={styles.chartTitle}>Sommeil</Text>
+              <Text style={styles.chartSubtitle}>Qualité de sommeil sur {period} jours</Text>
+              <View style={styles.chartContainer}>
+                <LineChart
+                  data={{
+                    labels: data.labels,
+                    datasets: [{
+                      data: data.sleepData,
+                    }],
+                  }}
+                  width={width - (SPACING.xl * 2)}
+                  height={200}
+                  chartConfig={{
+                    ...chartConfig,
+                    color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`,
+                    propsForDots: {
+                      r: '4',
+                      strokeWidth: '2',
+                      stroke: COLORS.success,
+                    },
+                  }}
+                  bezier
+                  style={styles.chart}
+                  withVerticalLines={false}
+                  withHorizontalLines={true}
+                  withDots={true}
+                  withShadow={false}
+                  fromZero
+                  segments={5}
+                />
+              </View>
+            </View>
+
+            {/* Symptoms Chart */}
+            {topSymptoms.length > 0 && (
+              <View style={styles.chartSection}>
+                <Text style={styles.chartTitle}>Symptômes les plus fréquents</Text>
+                <Text style={styles.chartSubtitle}>Nombre d'occurrences sur {period} jours</Text>
+                <View style={styles.chartContainer}>
+                  <BarChart
+                    data={{
+                      labels: topSymptoms.map(([symptom]) => getSymptomLabel(symptom)),
+                      datasets: [{
+                        data: topSymptoms.map(([_, count]) => count),
+                      }],
+                    }}
+                    width={width - (SPACING.xl * 2)}
+                    height={220}
+                    chartConfig={chartConfig}
+                    style={styles.chart}
+                    withVerticalLabels={true}
+                    withHorizontalLabels={true}
+                    fromZero
+                    showValuesOnTopOfBars={true}
+                    withInnerLines={false}
+                  />
+                </View>
+              </View>
+            )}
+
+            {/* Insights */}
+            <View style={styles.insightsSection}>
+              <Text style={styles.sectionTitle}>Observations</Text>
+              
+              <View style={styles.insightCard}>
+                <View style={styles.insightIcon}>
+                  <Ionicons name="trending-up" size={20} color={COLORS.primary} />
+                </View>
+                <View style={styles.insightContent}>
+                  <Text style={styles.insightTitle}>Humeur moyenne</Text>
+                  <Text style={styles.insightValue}>
+                    {(data.moodData.reduce((a, b) => a + b, 0) / data.moodData.length).toFixed(1)}/5
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.insightCard}>
+                <View style={styles.insightIcon}>
+                  <Ionicons name="moon" size={20} color={COLORS.success} />
+                </View>
+                <View style={styles.insightContent}>
+                  <Text style={styles.insightTitle}>Sommeil moyen</Text>
+                  <Text style={styles.insightValue}>
+                    {(data.sleepData.reduce((a, b) => a + b, 0) / data.sleepData.length).toFixed(1)}/10
+                  </Text>
+                </View>
+              </View>
+
+              {topSymptoms.length > 0 && (
+                <View style={styles.insightCard}>
+                  <View style={styles.insightIcon}>
+                    <Ionicons name="pulse" size={20} color={COLORS.warning} />
+                  </View>
+                  <View style={styles.insightContent}>
+                    <Text style={styles.insightTitle}>Symptôme principal</Text>
+                    <Text style={styles.insightValue}>
+                      {getSymptomLabel(topSymptoms[0][0])} ({topSymptoms[0][1]} jours)
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          </>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.lg,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontFamily: FONTS.heading.italic,
+    color: COLORS.text,
+    letterSpacing: -0.3,
+  },
+  placeholder: {
+    width: 40,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  periodSelector: {
+    flexDirection: 'row',
+    gap: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xl,
+    paddingBottom: SPACING.lg,
+  },
+  periodButton: {
+    flex: 1,
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.md,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+  },
+  periodButtonActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  periodButtonText: {
+    fontSize: 15,
+    fontFamily: FONTS.body.medium,
+    color: COLORS.text,
+  },
+  periodButtonTextActive: {
+    color: COLORS.white,
+  },
+  chartSection: {
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.xxl,
+  },
+  chartTitle: {
+    fontSize: 18,
+    fontFamily: FONTS.heading.italic,
+    color: COLORS.text,
+    marginBottom: SPACING.xs,
+    letterSpacing: -0.3,
+  },
+  chartSubtitle: {
+    fontSize: 13,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.lg,
+  },
+  chartContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  chart: {
+    borderRadius: RADIUS.md,
+  },
+  insightsSection: {
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.xxl,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: FONTS.heading.italic,
+    color: COLORS.text,
+    marginBottom: SPACING.lg,
+    letterSpacing: -0.3,
+  },
+  insightCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  insightIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
+  },
+  insightContent: {
+    flex: 1,
+  },
+  insightTitle: {
+    fontSize: 13,
+    fontFamily: FONTS.body.medium,
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  insightValue: {
+    fontSize: 18,
+    fontFamily: FONTS.heading.regular,
+    color: COLORS.text,
+    letterSpacing: -0.3,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.xxxl * 2,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontFamily: FONTS.heading.italic,
+    color: COLORS.text,
+    marginTop: SPACING.xl,
+    marginBottom: SPACING.sm,
+    letterSpacing: -0.3,
+  },
+  emptyStateText: {
+    fontSize: 15,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+});

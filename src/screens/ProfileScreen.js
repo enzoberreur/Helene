@@ -8,17 +8,28 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING } from '../constants/theme';
+import { COLORS, SPACING, FONTS, RADIUS, SHADOWS } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { LanguageContext } from '../../App';
+import { generateDoctorReport } from '../utils/pdfGenerator';
+import { generateWeeklyInsights } from '../utils/insightsGenerator';
+import {
+  requestNotificationPermissions,
+  scheduleDailyReminder,
+  cancelDailyReminder,
+  areNotificationsEnabled,
+  sendTestNotification,
+} from '../utils/notificationManager';
 
 export default function ProfileScreen({ navigation, user }) {
   const { t, language, setLanguage } = useContext(LanguageContext);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [profile, setProfile] = useState({
     email: user?.email || '',
     age: '',
@@ -43,7 +54,13 @@ export default function ProfileScreen({ navigation, user }) {
 
   useEffect(() => {
     loadProfile();
+    checkNotificationPermissions();
   }, []);
+
+  const checkNotificationPermissions = async () => {
+    const enabled = await areNotificationsEnabled();
+    setNotificationsEnabled(enabled);
+  };
 
   const loadProfile = async () => {
     try {
@@ -73,21 +90,41 @@ export default function ProfileScreen({ navigation, user }) {
   const saveProfile = async () => {
     setSaving(true);
     try {
-      const { error } = await supabase
+      // Préparer les données à sauvegarder
+      const profileData = {
+        id: user.id,
+        age: profile.age ? parseInt(profile.age) : null,
+        menopause_stage: profile.menopause_stage,
+        goals: profile.goals,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Utiliser upsert pour créer ou mettre à jour
+      const { data, error } = await supabase
         .from('profiles')
-        .update({
-          age: profile.age ? parseInt(profile.age) : null,
-          menopause_stage: profile.menopause_stage,
-          goals: profile.goals,
+        .upsert(profileData, { 
+          onConflict: 'id',
+          returning: 'representation' 
         })
-        .eq('id', user.id);
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Recharger le profil pour s'assurer que l'UI est à jour
+      if (data) {
+        setProfile({
+          email: user.email,
+          age: data.age?.toString() || '',
+          menopause_stage: data.menopause_stage || 'perimenopause',
+          goals: data.goals || [],
+        });
+      }
 
       Alert.alert('Succès', 'Profil mis à jour avec succès ! ✨');
     } catch (error) {
       console.error('Erreur sauvegarde profil:', error);
-      Alert.alert('Erreur', 'Impossible de sauvegarder le profil');
+      Alert.alert('Erreur', `Impossible de sauvegarder le profil: ${error.message}`);
     } finally {
       setSaving(false);
     }
@@ -119,6 +156,114 @@ export default function ProfileScreen({ navigation, user }) {
     );
   };
 
+  const handleGeneratePDF = async () => {
+    try {
+      setLoading(true);
+      
+      // Charger les 30 derniers jours
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { data: logs, error } = await supabase
+        .from('daily_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('log_date', thirtyDaysAgo.toISOString().split('T')[0])
+        .order('log_date', { ascending: false });
+
+      if (error) throw error;
+
+      if (!logs || logs.length === 0) {
+        Alert.alert(
+          'Pas de données',
+          'Vous devez avoir au moins quelques check-ins pour générer un rapport.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Générer les insights
+      const insights = generateWeeklyInsights(logs);
+
+      // Générer le PDF
+      const result = await generateDoctorReport(profile, logs, insights);
+
+      if (result.success) {
+        Alert.alert(
+          '✅ Rapport généré',
+          'Votre rapport médical a été créé avec succès !',
+          [{ text: 'OK' }]
+        );
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.error('Erreur génération PDF:', error);
+      Alert.alert(
+        'Erreur',
+        'Impossible de générer le rapport. Veuillez réessayer.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleNotifications = async (value) => {
+    if (value) {
+      // Activer les notifications
+      const granted = await requestNotificationPermissions();
+      if (granted) {
+        await scheduleDailyReminder();
+        setNotificationsEnabled(true);
+        Alert.alert(
+          '🔔 Notifications activées',
+          'Vous recevrez un rappel quotidien à 21h pour faire votre check-in.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Permission refusée',
+          'Veuillez autoriser les notifications dans les réglages de votre appareil.',
+          [{ text: 'OK' }]
+        );
+        setNotificationsEnabled(false);
+      }
+    } else {
+      // Désactiver les notifications
+      await cancelDailyReminder();
+      setNotificationsEnabled(false);
+      Alert.alert(
+        '🔕 Notifications désactivées',
+        'Vous ne recevrez plus de rappels quotidiens.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  const handleTestNotification = async () => {
+    try {
+      const granted = await requestNotificationPermissions();
+      if (granted) {
+        await sendTestNotification();
+        Alert.alert(
+          '✅ Test envoyé',
+          'Vous devriez recevoir une notification de test dans quelques secondes.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert(
+          'Permission refusée',
+          'Veuillez autoriser les notifications pour tester.',
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      console.error('Erreur test notification:', error);
+      Alert.alert('Erreur', 'Impossible d\'envoyer la notification de test.');
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -132,7 +277,7 @@ export default function ProfileScreen({ navigation, user }) {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
+          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Mon Profil</Text>
         <TouchableOpacity onPress={saveProfile} disabled={saving}>
@@ -241,13 +386,100 @@ export default function ProfileScreen({ navigation, user }) {
             onPress={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
           >
             <View style={styles.settingLeft}>
-              <Ionicons name="language" size={22} color={COLORS.textLight} />
+              <Ionicons name="language" size={22} color={COLORS.textSecondary} />
               <Text style={styles.settingLabel}>Langue</Text>
             </View>
             <View style={styles.settingRight}>
               <Text style={styles.settingValue}>{language === 'fr' ? 'Français' : 'English'}</Text>
-              <Ionicons name="chevron-forward" size={20} color={COLORS.textLight} />
+              <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Export PDF */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Rapport médical</Text>
+          
+          <TouchableOpacity
+            style={styles.pdfButton}
+            onPress={handleGeneratePDF}
+            disabled={loading}
+          >
+            <View style={styles.pdfIconContainer}>
+              <Ionicons name="document-text" size={24} color={COLORS.white} />
+            </View>
+            <View style={styles.pdfContent}>
+              <Text style={styles.pdfTitle}>Générer un rapport PDF</Text>
+              <Text style={styles.pdfSubtitle}>
+                Créez un rapport détaillé pour votre médecin
+              </Text>
+            </View>
+            <Ionicons name="download" size={22} color={COLORS.primary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Notifications */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notifications</Text>
+          
+          <View style={styles.notificationCard}>
+            <View style={styles.notificationHeader}>
+              <View style={styles.notificationIconContainer}>
+                <Ionicons name="notifications" size={24} color={COLORS.primary} />
+              </View>
+              <View style={styles.notificationContent}>
+                <Text style={styles.notificationTitle}>Rappel quotidien</Text>
+                <Text style={styles.notificationSubtitle}>
+                  Check-in tous les jours à 21h
+                </Text>
+              </View>
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={handleToggleNotifications}
+                trackColor={{ false: COLORS.gray[300], true: COLORS.primaryLight }}
+                thumbColor={notificationsEnabled ? COLORS.primary : COLORS.gray[100]}
+              />
+            </View>
+
+            {notificationsEnabled && (
+              <TouchableOpacity
+                style={styles.testNotificationButton}
+                onPress={handleTestNotification}
+              >
+                <Ionicons name="send" size={16} color={COLORS.primary} />
+                <Text style={styles.testNotificationText}>
+                  Envoyer une notification de test
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+
+        {/* À propos */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="information-circle-outline" size={24} color={COLORS.text} />
+            <Text style={styles.sectionTitle}>À propos</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.aboutButton}
+            onPress={() => navigation.navigate('about')}
+          >
+            <View style={styles.aboutButtonContent}>
+              <Ionicons name="heart" size={20} color={COLORS.primary} />
+              <Text style={styles.aboutButtonText}>Comment ça marche ?</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.aboutButton}
+            onPress={() => navigation.navigate('about')}
+          >
+            <View style={styles.aboutButtonContent}>
+              <Ionicons name="shield-checkmark" size={20} color={COLORS.success} />
+              <Text style={styles.aboutButtonText}>Confidentialité & GDPR</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
           </TouchableOpacity>
         </View>
 
@@ -283,7 +515,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.secondary,
+    color: COLORS.text,
   },
   content: {
     flex: 1,
@@ -296,7 +528,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.secondary,
+    color: COLORS.text,
     marginBottom: SPACING.sm,
   },
   subtitle: {
@@ -310,7 +542,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.secondary,
+    color: COLORS.text,
     marginBottom: SPACING.xs,
   },
   input: {
@@ -320,7 +552,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: SPACING.md,
     fontSize: 16,
-    color: COLORS.secondary,
+    color: COLORS.text,
   },
   disabledInput: {
     backgroundColor: COLORS.backgroundLight,
@@ -365,7 +597,7 @@ const styles = StyleSheet.create({
   },
   radioLabel: {
     fontSize: 15,
-    color: COLORS.secondary,
+    color: COLORS.text,
   },
   radioLabelSelected: {
     fontWeight: '600',
@@ -392,7 +624,7 @@ const styles = StyleSheet.create({
   },
   goalLabel: {
     fontSize: 13,
-    color: COLORS.secondary,
+    color: COLORS.text,
     marginTop: SPACING.xs,
     textAlign: 'center',
   },
@@ -428,7 +660,7 @@ const styles = StyleSheet.create({
   },
   settingLabel: {
     fontSize: 15,
-    color: COLORS.secondary,
+    color: COLORS.text,
   },
   settingRight: {
     flexDirection: 'row',
@@ -437,7 +669,112 @@ const styles = StyleSheet.create({
   },
   settingValue: {
     fontSize: 15,
-    color: COLORS.textLight,
+    color: COLORS.textSecondary,
+  },
+  pdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primaryLight,
+    padding: SPACING.lg,
+    borderRadius: RADIUS.lg,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  pdfIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: SPACING.md,
+  },
+  pdfContent: {
+    flex: 1,
+  },
+  pdfTitle: {
+    fontSize: 16,
+    fontFamily: FONTS.body.semibold,
+    color: COLORS.text,
+    marginBottom: 4,
+  },
+  pdfSubtitle: {
+    fontSize: 13,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+  },
+  notificationCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: SPACING.lg,
+    borderWidth: 1,
+    borderColor: COLORS.primaryLight,
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  notificationIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: COLORS.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationContent: {
+    flex: 1,
+  },
+  notificationTitle: {
+    fontSize: 16,
+    fontFamily: FONTS.body.semibold,
+    color: COLORS.text,
+    marginBottom: 2,
+  },
+  notificationSubtitle: {
+    fontSize: 13,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.textSecondary,
+    lineHeight: 18,
+  },
+  testNotificationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: 8,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    marginTop: SPACING.md,
+  },
+  testNotificationText: {
+    fontSize: 14,
+    fontFamily: FONTS.body.medium,
+    color: COLORS.primary,
+  },
+  aboutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    padding: SPACING.lg,
+    marginBottom: SPACING.sm,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  aboutButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.md,
+  },
+  aboutButtonText: {
+    fontSize: 15,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.text,
   },
   signOutButton: {
     flexDirection: 'row',

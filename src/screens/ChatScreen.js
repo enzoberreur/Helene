@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING } from '../constants/theme';
+import { COLORS, SPACING, FONTS, RADIUS, SHADOWS } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { generateChatResponse } from '../lib/gemini';
 import { LanguageContext } from '../../App';
@@ -57,33 +57,76 @@ Comment puis-je vous aider aujourd'hui ?`,
         .eq('id', user.id)
         .single();
 
-      // Charger les symptômes récents (dernier log)
-      const { data: recentLog } = await supabase
+      // Charger les 7 derniers jours de logs
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const { data: recentLogs } = await supabase
         .from('daily_logs')
         .select('*')
         .eq('user_id', user.id)
-        .order('log_date', { ascending: false })
-        .limit(1)
-        .single();
+        .gte('log_date', sevenDaysAgo.toISOString().split('T')[0])
+        .order('log_date', { ascending: false });
 
-      const recentSymptoms = recentLog ? {
-        hot_flashes: recentLog.hot_flashes,
-        night_sweats: recentLog.night_sweats,
-        headaches: recentLog.headaches,
-        joint_pain: recentLog.joint_pain,
-        fatigue: recentLog.fatigue,
-        anxiety: recentLog.anxiety,
-        irritability: recentLog.irritability,
-        brain_fog: recentLog.brain_fog,
-        low_mood: recentLog.low_mood,
-      } : {};
+      // Analyser les symptômes des 7 derniers jours
+      let contextSummary = '';
+      if (recentLogs && recentLogs.length > 0) {
+        const symptoms = ['hot_flashes', 'night_sweats', 'headaches', 'joint_pain', 'fatigue', 'anxiety', 'irritability', 'brain_fog', 'low_mood'];
+        const symptomLabels = {
+          hot_flashes: 'bouffées de chaleur',
+          night_sweats: 'sueurs nocturnes',
+          headaches: 'maux de tête',
+          joint_pain: 'douleurs articulaires',
+          fatigue: 'fatigue',
+          anxiety: 'anxiété',
+          irritability: 'irritabilité',
+          brain_fog: 'brouillard mental',
+          low_mood: 'humeur basse',
+        };
+
+        const symptomCounts = {};
+        symptoms.forEach(symptom => {
+          symptomCounts[symptom] = recentLogs.filter(log => log[symptom] && log[symptom] > 0).length;
+        });
+
+        const topSymptoms = Object.entries(symptomCounts)
+          .filter(([_, count]) => count > 0)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([symptom, count]) => `${symptomLabels[symptom]} (${count}x)`);
+
+        if (topSymptoms.length > 0) {
+          contextSummary = `Cette semaine, vous avez ressenti : ${topSymptoms.join(', ')}.`;
+        }
+
+        // Calculer l'humeur moyenne
+        const avgMood = recentLogs.reduce((sum, log) => sum + (log.mood || 0), 0) / recentLogs.length;
+        if (avgMood > 0) {
+          contextSummary += ` Votre humeur moyenne est de ${avgMood.toFixed(1)}/5.`;
+        }
+      }
 
       setUserContext({
         age: profile?.age,
         menopauseStage: profile?.menopause_stage,
         goals: profile?.goals || [],
-        recentSymptoms,
+        recentLogs: recentLogs || [],
+        contextSummary,
       });
+
+      // Mettre à jour le message d'accueil avec le contexte
+      if (contextSummary && messages.length === 1) {
+        setMessages([{
+          id: '1',
+          role: 'assistant',
+          content: `Bonjour ! 🌸 Je suis Hélène, votre copilote ménopause.
+
+${contextSummary}
+
+Comment puis-je vous aider aujourd'hui ?`,
+          timestamp: new Date().toISOString(),
+        }]);
+      }
     } catch (error) {
       console.error('Erreur chargement contexte:', error);
     }
@@ -185,7 +228,7 @@ Comment puis-je vous aider aujourd'hui ?`,
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
+          <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
         <View style={styles.headerInfo}>
           <View style={styles.headerAvatar}>
@@ -282,7 +325,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontWeight: '600',
-    color: COLORS.secondary,
+    color: COLORS.text,
   },
   headerSubtitle: {
     fontSize: 13,
@@ -342,7 +385,7 @@ const styles = StyleSheet.create({
     color: COLORS.white,
   },
   assistantText: {
-    color: COLORS.secondary,
+    color: COLORS.text,
   },
   timestamp: {
     fontSize: 11,
@@ -391,7 +434,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md + 2,
     paddingVertical: SPACING.sm + 2,
     fontSize: 15,
-    color: COLORS.secondary,
+    color: COLORS.text,
     maxHeight: 100,
   },
   sendButton: {

@@ -162,7 +162,7 @@ export default function SignUpScreen({ navigation }) {
               onPress={step === 1 ? () => navigation.goBack() : handleBack}
               style={styles.backButton}
             >
-              <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
+              <Ionicons name="arrow-back" size={24} color={COLORS.text} />
             </TouchableOpacity>
             <Text style={styles.stepText}>Étape {step}/{totalSteps}</Text>
             <View style={styles.placeholder} />
@@ -212,7 +212,7 @@ export default function SignUpScreen({ navigation }) {
                       onPress={handleGoogleSignUp}
                       disabled={loading}
                     >
-                      <Ionicons name="logo-google" size={24} color={COLORS.secondary} />
+                      <Ionicons name="logo-google" size={24} color={COLORS.text} />
                       <Text style={styles.socialButtonLargeTextOutline}>Continuer avec Google</Text>
                     </TouchableOpacity>
                   </View>
@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontFamily: 'Times New Roman',
     fontStyle: 'italic',
-    color: COLORS.secondary,
+    color: COLORS.text,
     fontWeight: '400',
     marginBottom: SPACING.sm,
   },
@@ -550,7 +550,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 15,
-    color: COLORS.secondary,
+    color: COLORS.text,
     fontWeight: '600',
     marginBottom: SPACING.sm,
   },
@@ -567,7 +567,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md + 2,
     paddingHorizontal: SPACING.lg,
     fontSize: 16,
-    color: COLORS.secondary,
+    color: COLORS.text,
   },
   optionsContainer: {
     gap: SPACING.md,
@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
   optionTitle: {
     fontSize: 17,
     fontWeight: '600',
-    color: COLORS.secondary,
+    color: COLORS.text,
   },
   optionTitleSelected: {
     color: COLORS.primary,
@@ -625,7 +625,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.secondary,
+    backgroundColor: COLORS.text,
     paddingVertical: SPACING.md + 4,
     borderRadius: 14,
     gap: SPACING.sm + 4,
@@ -647,7 +647,7 @@ const styles = StyleSheet.create({
     gap: SPACING.sm + 4,
   },
   socialButtonLargeTextOutline: {
-    color: COLORS.secondary,
+    color: COLORS.text,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -662,7 +662,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md + 2,
     paddingHorizontal: SPACING.lg,
     fontSize: 16,
-    color: COLORS.secondary,
+    color: COLORS.text,
   },
   eyeIcon: {
     paddingHorizontal: SPACING.md,

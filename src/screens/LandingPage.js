@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING } from '../constants/theme';
+import { COLORS, SPACING, FONTS } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { LanguageContext } from '../../App';
 
@@ -286,21 +286,21 @@ export default function LandingPage({ navigation }) {
                     onPress={() => handleSocialLogin('Apple')}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="logo-apple" size={22} color={COLORS.secondary} />
+                    <Ionicons name="logo-apple" size={22} color={COLORS.text} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.socialButton}
                     onPress={() => handleSocialLogin('Google')}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="logo-google" size={22} color={COLORS.secondary} />
+                    <Ionicons name="logo-google" size={22} color={COLORS.text} />
                   </TouchableOpacity>
                 </View>
 
                 <TouchableOpacity
                   style={styles.signupButton}
                   activeOpacity={0.8}
-                  onPress={() => navigation.navigate('signup')}
+                  onPress={() => navigation.navigate('onboardingWelcome')}
                 >
                   <Text style={styles.signupText}>
                     {language === 'fr' ? "Pas encore de compte ? " : "Don't have an account? "}
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
     color: COLORS.gray[400],
   },
   langTextActive: {
-    color: COLORS.secondary,
+    color: COLORS.text,
     fontWeight: '700',
   },
   mainContainer: {
@@ -370,14 +370,14 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 42,
-    fontFamily: 'Times New Roman',
-    fontStyle: 'italic',
-    color: COLORS.secondary,
+    fontFamily: FONTS.heading.italic,
+    color: COLORS.text,
     fontWeight: '400',
     letterSpacing: -1,
   },
   tagline: {
     fontSize: 15,
+    fontFamily: FONTS.body.regular,
     color: COLORS.gray[500],
     marginTop: SPACING.xs,
     letterSpacing: 0.5,
@@ -416,14 +416,14 @@ const styles = StyleSheet.create({
     flex: 1,
     height: '100%',
     fontSize: 16,
-    color: COLORS.secondary,
+    color: COLORS.text,
     paddingHorizontal: SPACING.md,
   },
   passwordInput: {
     flex: 1,
     height: '100%',
     fontSize: 16,
-    color: COLORS.secondary,
+    color: COLORS.text,
     paddingLeft: SPACING.md,
   },
   eyeIcon: {
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
   continueButton: {
     height: 56,
     borderRadius: 12,
-    backgroundColor: COLORS.secondary, // Solid black/dark gray
+    backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACING.xl,
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   signupLink: {
-    color: COLORS.secondary,
+    color: COLORS.text,
     fontWeight: '600',
   },
 });

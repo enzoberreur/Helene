@@ -12,16 +12,17 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING } from '../constants/theme';
+import { COLORS, SPACING, FONTS, RADIUS, SHADOWS } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { LanguageContext } from '../../App';
+import { analyzeSentiment, generateEncouragementMessage } from '../utils/sentimentAnalysis';
 
 const MOOD_OPTIONS = [
-  { value: 1, emoji: '😢', label: 'Très mauvais' },
-  { value: 2, emoji: '😕', label: 'Mauvais' },
-  { value: 3, emoji: '😐', label: 'Moyen' },
-  { value: 4, emoji: '🙂', label: 'Bien' },
-  { value: 5, emoji: '😊', label: 'Excellent' },
+  { value: 1, icon: 'sad', label: 'Très bas', color: '#F56565' },
+  { value: 2, icon: 'sad-outline', label: 'Bas', color: '#ED8936' },
+  { value: 3, icon: 'remove-circle-outline', label: 'Neutre', color: '#718096' },
+  { value: 4, icon: 'happy-outline', label: 'Bien', color: '#48BB78' },
+  { value: 5, icon: 'happy', label: 'Excellent', color: '#38A169' },
 ];
 
 const INTENSITY_OPTIONS = [
@@ -117,6 +118,15 @@ export default function DailyCheckInScreen({ navigation, user }) {
       setLoading(true);
       const today = new Date().toISOString().split('T')[0];
 
+      // Analyser le sentiment des notes
+      let sentimentAnalysis = null;
+      let encouragementMessage = '';
+      
+      if (notes && notes.trim().length > 0) {
+        sentimentAnalysis = analyzeSentiment(notes);
+        encouragementMessage = generateEncouragementMessage(sentimentAnalysis);
+      }
+
       const logData = {
         user_id: user.id,
         log_date: today,
@@ -126,6 +136,9 @@ export default function DailyCheckInScreen({ navigation, user }) {
         ...physicalSymptoms,
         ...mentalSymptoms,
         notes: notes.trim() || null,
+        notes_sentiment: sentimentAnalysis?.sentiment || null,
+        notes_sentiment_score: sentimentAnalysis?.score || null,
+        notes_sentiment_emoji: sentimentAnalysis?.emoji || null,
       };
 
       let error;
@@ -144,9 +157,14 @@ export default function DailyCheckInScreen({ navigation, user }) {
 
       if (error) throw error;
 
+      // Message personnalisé avec encouragement
+      const alertMessage = sentimentAnalysis 
+        ? `Votre suivi quotidien a été enregistré.\n\n${sentimentAnalysis.emoji} ${encouragementMessage}`
+        : 'Votre suivi quotidien a été enregistré.';
+
       Alert.alert(
         '✅ Enregistré !',
-        'Votre suivi quotidien a été enregistré.',
+        alertMessage,
         [
           {
             text: 'OK',
@@ -179,7 +197,7 @@ export default function DailyCheckInScreen({ navigation, user }) {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.secondary} />
+            <Ionicons name="arrow-back" size={24} color={COLORS.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Check-in quotidien</Text>
           <View style={styles.placeholder} />
@@ -196,8 +214,20 @@ export default function DailyCheckInScreen({ navigation, user }) {
                   style={[styles.moodButton, mood === option.value && styles.moodButtonSelected]}
                   onPress={() => setMood(option.value)}
                 >
-                  <Text style={styles.moodEmoji}>{option.emoji}</Text>
-                  <Text style={styles.moodLabel}>{option.label}</Text>
+                  <View style={[
+                    styles.moodIconContainer,
+                    mood === option.value && { backgroundColor: option.color }
+                  ]}>
+                    <Ionicons 
+                      name={option.icon} 
+                      size={28} 
+                      color={mood === option.value ? COLORS.white : option.color} 
+                    />
+                  </View>
+                  <Text style={[
+                    styles.moodLabel,
+                    mood === option.value && styles.moodLabelSelected
+                  ]}>{option.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -349,7 +379,7 @@ export default function DailyCheckInScreen({ navigation, user }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.background,
   },
   content: {
     flex: 1,
@@ -358,59 +388,81 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.xl,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   backButton: {
     padding: SPACING.xs,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.secondary,
+    fontSize: 22,
+    fontWeight: '400',
+    fontFamily: FONTS.heading.regular,
+    color: COLORS.text,
+    letterSpacing: -0.3,
+    fontStyle: 'italic',
   },
   placeholder: {
     width: 40,
   },
   scrollContent: {
-    paddingHorizontal: SPACING.lg,
-    paddingBottom: SPACING.xl,
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xxl,
+    paddingBottom: SPACING.xxxl,
   },
   section: {
-    marginBottom: SPACING.xxl,
+    marginBottom: SPACING.xxxl,
   },
   sectionTitle: {
     fontSize: 17,
-    fontWeight: '700',
-    color: COLORS.secondary,
-    marginBottom: SPACING.md,
+    fontWeight: '600',
+    fontFamily: FONTS.body.semibold,
+    color: COLORS.text,
+    marginBottom: SPACING.lg,
+    letterSpacing: -0.2,
   },
   moodContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: SPACING.xs,
+    gap: SPACING.md,
   },
   moodButton: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: SPACING.md,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: COLORS.gray[200],
+    paddingVertical: SPACING.xl,
+    paddingHorizontal: SPACING.xs,
+    borderRadius: RADIUS.md,
     backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   moodButtonSelected: {
     borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary + '10',
+    backgroundColor: COLORS.primaryLight,
   },
-  moodEmoji: {
-    fontSize: 28,
-    marginBottom: SPACING.xs,
+  moodIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: RADIUS.sm,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.gray[100],
+    marginBottom: SPACING.sm,
   },
   moodLabel: {
     fontSize: 11,
-    color: COLORS.gray[600],
+    fontFamily: FONTS.body.medium,
+    color: COLORS.textSecondary,
     textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  moodLabelSelected: {
+    color: COLORS.primary,
+    fontFamily: FONTS.body.semibold,
   },
   scaleContainer: {
     flexDirection: 'row',
@@ -422,19 +474,20 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: COLORS.gray[200],
+    borderRadius: RADIUS.md,
     backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   scaleButtonSelected: {
-    borderColor: COLORS.primary,
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   scaleText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.gray[600],
+    fontWeight: '400',
+    fontFamily: FONTS.heading.regular,
+    color: COLORS.textSecondary,
   },
   scaleTextSelected: {
     color: COLORS.white,
@@ -442,82 +495,81 @@ const styles = StyleSheet.create({
   scaleLabels: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: SPACING.xs,
+    marginTop: SPACING.sm,
   },
   scaleLabel: {
-    fontSize: 12,
-    color: COLORS.gray[400],
+    fontSize: 11,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   symptomRow: {
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.xl,
   },
   symptomHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.md,
     gap: SPACING.sm,
   },
   symptomLabel: {
     fontSize: 15,
-    color: COLORS.secondary,
-    fontWeight: '500',
+    fontFamily: FONTS.body.medium,
+    color: COLORS.text,
   },
   intensityContainer: {
     flexDirection: 'row',
-    gap: SPACING.xs,
+    gap: SPACING.sm,
   },
   intensityButton: {
     flex: 1,
-    paddingVertical: SPACING.sm,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: COLORS.gray[200],
+    paddingVertical: SPACING.md,
+    borderRadius: RADIUS.sm,
     backgroundColor: COLORS.white,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   intensityButtonSelected: {
-    borderColor: COLORS.primary,
     backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
   },
   intensityText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.gray[600],
+    fontWeight: '500',
+    fontFamily: FONTS.body.medium,
+    color: COLORS.textSecondary,
   },
   intensityTextSelected: {
     color: COLORS.white,
   },
   notesInput: {
-    backgroundColor: COLORS.gray[50],
+    backgroundColor: COLORS.white,
     borderWidth: 1,
-    borderColor: COLORS.gray[200],
-    borderRadius: 12,
-    paddingVertical: SPACING.md,
+    borderColor: COLORS.border,
+    borderRadius: RADIUS.md,
+    paddingVertical: SPACING.lg,
     paddingHorizontal: SPACING.lg,
     fontSize: 15,
-    color: COLORS.secondary,
-    minHeight: 100,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.text,
+    minHeight: 120,
     textAlignVertical: 'top',
+    lineHeight: 22,
   },
   buttonContainer: {
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    paddingVertical: SPACING.xl,
+    backgroundColor: COLORS.white,
     borderTopWidth: 1,
-    borderTopColor: COLORS.gray[100],
+    borderTopColor: COLORS.border,
   },
   saveButton: {
     backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.md + 4,
-    borderRadius: 16,
+    paddingVertical: SPACING.lg,
+    borderRadius: RADIUS.md,
     alignItems: 'center',
-    shadowColor: COLORS.primary,
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
   },
   saveButtonDisabled: {
     opacity: 0.5,
@@ -526,5 +578,7 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: '600',
+    fontFamily: FONTS.body.semibold,
+    letterSpacing: 0.3,
   },
 });
