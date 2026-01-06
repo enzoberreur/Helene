@@ -9,12 +9,14 @@ import {
   ActivityIndicator,
   Animated,
 } from 'react-native';
+import { Calendar } from 'react-native-calendars';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 import { LanguageContext } from '../../App';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { generateWeeklyInsights } from '../utils/insightsGenerator';
 import { hapticFeedback } from '../utils/hapticFeedback';
+import BottomSheet from '../components/BottomSheet';
 
 export default function HomeScreen({ navigation }) {
   const { t, language } = useContext(LanguageContext);
@@ -27,12 +29,22 @@ export default function HomeScreen({ navigation }) {
   });
   const [insights, setInsights] = useState([]);
   
+  // État pour le calendrier menstruel
+  const [cycles, setCycles] = useState([]);
+  const [markedDates, setMarkedDates] = useState({});
+  const [nextPeriodDate, setNextPeriodDate] = useState(null);
+  const [avgCycleLength, setAvgCycleLength] = useState(null);
+  
+  // État pour le bottom sheet
+  const [isBottomSheetVisible, setIsBottomSheetVisible] = useState(false);
+  
   // Animations pour empty state
   const bounceAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadStats();
+    loadCycles();
     
     // Animation pour empty state
     Animated.parallel([
@@ -136,6 +148,78 @@ export default function HomeScreen({ navigation }) {
     return { name: 'alert-circle-outline', color: COLORS.error };
   };
 
+  // Fonction pour charger les cycles menstruels
+  const loadCycles = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('menstrual_cycles')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('period_start_date', { ascending: false })
+        .limit(6);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        setCycles(data);
+        
+        // Calculer la moyenne des cycles
+        const cyclesWithLength = data.filter(c => c.cycle_length && c.cycle_length > 0);
+        if (cyclesWithLength.length > 0) {
+          const avg = cyclesWithLength.reduce((sum, c) => sum + c.cycle_length, 0) / cyclesWithLength.length;
+          setAvgCycleLength(Math.round(avg));
+          
+          // Prévoir la prochaine date
+          const lastPeriod = new Date(data[0].period_start_date);
+          const nextDate = new Date(lastPeriod);
+          nextDate.setDate(nextDate.getDate() + Math.round(avg));
+          setNextPeriodDate(nextDate.toISOString().split('T')[0]);
+        }
+        
+        // Marquer les dates sur le calendrier
+        const marked = {};
+        data.forEach(cycle => {
+          const startDate = cycle.period_start_date;
+          let color = COLORS.primary;
+          
+          if (cycle.flow_intensity === 'light') color = '#FFC0CB';
+          if (cycle.flow_intensity === 'moderate') color = COLORS.primary;
+          if (cycle.flow_intensity === 'heavy') color = '#C71585';
+          if (cycle.flow_intensity === 'hemorrhage') color = '#8B0000';
+
+          marked[startDate] = {
+            selected: true,
+            selectedColor: color,
+            marked: cycle.requires_urgent_attention,
+            dotColor: '#FF0000',
+          };
+        });
+        
+        // Ajouter la prévision
+        if (nextPeriodDate) {
+          marked[nextPeriodDate] = {
+            marked: true,
+            dotColor: COLORS.primary,
+            customStyles: {
+              container: {
+                borderWidth: 2,
+                borderColor: COLORS.primary,
+                borderStyle: 'dashed',
+              },
+            },
+          };
+        }
+        
+        setMarkedDates(marked);
+      }
+    } catch (error) {
+      console.error('Erreur chargement cycles:', error);
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -150,6 +234,15 @@ export default function HomeScreen({ navigation }) {
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.menuButton}
+            onPress={() => {
+              hapticFeedback.light();
+              setIsBottomSheetVisible(true);
+            }}
+          >
+            <Ionicons name="menu" size={28} color={COLORS.text} />
+          </TouchableOpacity>
           <View style={styles.headerContent}>
             <Text style={styles.greeting}>{t.home.hello}</Text>
             <Text style={styles.subtitle}>{t.home.headerSubtitle}</Text>
@@ -184,6 +277,85 @@ export default function HomeScreen({ navigation }) {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Calendrier Menstruel */}
+        {cycles.length > 0 && (
+          <View style={styles.calendarSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Calendrier Menstruel</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  hapticFeedback.light();
+                  navigation.navigate('cycleTracking');
+                }}
+                style={styles.viewAllButton}
+              >
+                <Text style={styles.viewAllText}>Gérer</Text>
+                <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Prévision */}
+            {nextPeriodDate && avgCycleLength && (
+              <View style={styles.predictionCard}>
+                <View style={styles.predictionHeader}>
+                  <Ionicons name="calendar-outline" size={20} color={COLORS.primary} />
+                  <Text style={styles.predictionTitle}>Prochaines règles prévues</Text>
+                </View>
+                <Text style={styles.predictionDate}>
+                  {new Date(nextPeriodDate).toLocaleDateString('fr-FR', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long'
+                  })}
+                </Text>
+                <Text style={styles.predictionSubtitle}>
+                  Cycle moyen : {avgCycleLength} jours
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.calendarContainer}>
+              <Calendar
+                markedDates={markedDates}
+                markingType={'simple'}
+                theme={{
+                  backgroundColor: '#ffffff',
+                  calendarBackground: '#ffffff',
+                  textSectionTitleColor: COLORS.text,
+                  selectedDayBackgroundColor: COLORS.primary,
+                  selectedDayTextColor: '#ffffff',
+                  todayTextColor: COLORS.primary,
+                  dayTextColor: COLORS.text,
+                  textDisabledColor: COLORS.gray[300],
+                  monthTextColor: COLORS.text,
+                  arrowColor: COLORS.primary,
+                }}
+                style={styles.calendar}
+              />
+              
+              {/* Légende */}
+              <View style={styles.legendContainer}>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#FFC0CB' }]} />
+                  <Text style={styles.legendText}>Léger</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: COLORS.primary }]} />
+                  <Text style={styles.legendText}>Modéré</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#C71585' }]} />
+                  <Text style={styles.legendText}>Abondant</Text>
+                </View>
+                <View style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: '#8B0000' }]} />
+                  <Text style={styles.legendText}>Hémorragie</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Statistiques */}
         <View style={styles.statsSection}>
@@ -325,52 +497,14 @@ export default function HomeScreen({ navigation }) {
             </>
           )}
         </View>
-
-        {/* Action secondaire */}
-        <View style={styles.chatSection}>
-          <View style={styles.groupContainer}>
-            <TouchableOpacity
-              style={[styles.groupRow, styles.groupRowTouchable, styles.groupRowDivider]}
-              onPress={() => {
-                hapticFeedback.light();
-                navigation.navigate('chat');
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={styles.rowIconBadge}>
-                <Ionicons name="sparkles" size={18} color={COLORS.primary} />
-              </View>
-              <View style={styles.rowMain}>
-                <Text style={styles.rowTitle}>{t.home.talkToHelene}</Text>
-                <Text style={styles.rowSubtitle} numberOfLines={1}>
-                  {t.home.talkToHeleneSubtitle}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.gray[400]} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.groupRow, styles.groupRowTouchable]}
-              onPress={() => {
-                hapticFeedback.light();
-                navigation.navigate('journal');
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={styles.rowIconBadge}>
-                <Ionicons name="heart" size={18} color={COLORS.primary} />
-              </View>
-              <View style={styles.rowMain}>
-                <Text style={styles.rowTitle}>{t.home.emotionalJournal}</Text>
-                <Text style={styles.rowSubtitle} numberOfLines={1}>
-                  {t.home.emotionalJournalSubtitle}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={COLORS.gray[400]} />
-            </TouchableOpacity>
-          </View>
-        </View>
       </ScrollView>
+
+      {/* Bottom Sheet Menu */}
+      <BottomSheet
+        visible={isBottomSheetVisible}
+        onClose={() => setIsBottomSheetVisible(false)}
+        navigation={navigation}
+      />
     </SafeAreaView>
   );
 }
@@ -398,8 +532,15 @@ const styles = StyleSheet.create({
     paddingBottom: SPACING.md,
     backgroundColor: COLORS.background,
   },
+  menuButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    marginTop: 4,
+  },
   headerContent: {
     flex: 1,
+    paddingHorizontal: SPACING.sm,
   },
   greeting: {
     fontSize: 34,
@@ -643,4 +784,76 @@ const styles = StyleSheet.create({
     paddingTop: SPACING.xl,
     paddingBottom: SPACING.xxl,
   },
+  calendarSection: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.xl,
+  },
+  calendarContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
+    overflow: 'hidden',
+    ...SHADOWS.sm,
+  },
+  calendar: {
+    borderRadius: RADIUS.lg,
+  },
+  predictionCard: {
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+  },
+  predictionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+    marginBottom: SPACING.xs,
+  },
+  predictionTitle: {
+    fontSize: 14,
+    fontFamily: FONTS.body.semibold,
+    color: COLORS.primary,
+  },
+  predictionDate: {
+    fontSize: 18,
+    fontFamily: FONTS.body.bold,
+    color: COLORS.text,
+    marginBottom: 2,
+    textTransform: 'capitalize',
+  },
+  predictionSubtitle: {
+    fontSize: 13,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.textSecondary,
+  },
+  legendContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  legendText: {
+    fontSize: 11,
+    fontFamily: FONTS.body.regular,
+    color: COLORS.textSecondary,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
 });
+

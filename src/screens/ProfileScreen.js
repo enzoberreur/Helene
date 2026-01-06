@@ -46,7 +46,7 @@ export default function ProfileScreen({ navigation, user }) {
   const [profile, setProfile] = useState({
     email: user?.email || '',
     age: '',
-    menopause_stage: 'perimenopause',
+    menopause_stage: 'peri',
     goals: [],
   });
 
@@ -58,9 +58,10 @@ export default function ProfileScreen({ navigation, user }) {
   };
 
   const menopauseStages = useMemo(() => [
-    { value: 'perimenopause', label: t.profile.perimenopause },
-    { value: 'menopause', label: t.profile.menopause },
-    { value: 'postmenopause', label: t.profile.postmenopause },
+    { value: 'pre', label: t.profile.premenopause },
+    { value: 'peri', label: t.profile.perimenopause },
+    { value: 'meno', label: t.profile.menopause },
+    { value: 'post', label: t.profile.postmenopause },
   ], [t]);
 
   const availableGoals = useMemo(() => {
@@ -100,7 +101,7 @@ export default function ProfileScreen({ navigation, user }) {
         setProfile({
           email: user.email,
           age: data.age?.toString() || '',
-          menopause_stage: data.menopause_stage || 'perimenopause',
+          menopause_stage: data.menopause_stage || 'peri',
           goals: data.goals || [],
         });
       }
@@ -221,7 +222,7 @@ export default function ProfileScreen({ navigation, user }) {
         setProfile({
           email: user.email,
           age: data.age?.toString() || '',
-          menopause_stage: data.menopause_stage || 'perimenopause',
+          menopause_stage: data.menopause_stage || 'peri',
           goals: data.goals || [],
         });
       }

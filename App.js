@@ -26,6 +26,10 @@ import TrendsScreen from './src/screens/TrendsScreen';
 import EmotionalJournalScreen from './src/screens/EmotionalJournalScreen';
 import AboutScreen from './src/screens/AboutScreen';
 import SplashScreen from './src/screens/SplashScreen';
+import CycleTrackingScreen from './src/screens/CycleTrackingScreen';
+import HormoneTrackingScreen from './src/screens/HormoneTrackingScreen';
+import SurgicalRiskScreen from './src/screens/SurgicalRiskScreen';
+import BlogScreen from './src/screens/BlogScreen';
 import { setupDeepLinking } from './src/utils/linking';
 import { supabase } from './src/lib/supabase';
 import { getTranslation } from './src/i18n/translations';
@@ -187,6 +191,14 @@ export default function App() {
         <EmotionalJournalScreen navigation={navigation} user={user} />
       ) : currentScreen === 'about' ? (
         <AboutScreen navigation={navigation} />
+      ) : currentScreen === 'cycleTracking' ? (
+        <CycleTrackingScreen navigation={navigation} user={user} />
+      ) : currentScreen === 'hormoneTracking' ? (
+        <HormoneTrackingScreen navigation={navigation} user={user} />
+      ) : currentScreen === 'surgicalRisk' ? (
+        <SurgicalRiskScreen navigation={navigation} user={user} />
+      ) : currentScreen === 'blog' ? (
+        <BlogScreen navigation={navigation} user={user} />
       ) : (
         <HomeScreen navigation={navigation} user={user} />
       )}
