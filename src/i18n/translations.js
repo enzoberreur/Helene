@@ -664,3 +664,7 @@ export const translations = {
     },
   },
 };
+
+export const getTranslation = (language) => {
+  return translations[language] || translations.fr;
+};
