@@ -40,9 +40,9 @@ export default function ProfileScreen({ navigation, user }) {
   });
 
   const menopauseStages = [
-    { value: 'perimenopause', label: 'Périménopause' },
-    { value: 'menopause', label: 'Ménopause' },
-    { value: 'postmenopause', label: 'Post-ménopause' },
+    { value: 'perimenopause', label: t.profile.perimenopause },
+    { value: 'menopause', label: t.profile.menopause },
+    { value: 'postmenopause', label: t.profile.postmenopause },
   ];
 
   const availableGoals = [
@@ -147,10 +147,10 @@ export default function ProfileScreen({ navigation, user }) {
         });
       }
 
-      Alert.alert('Succès', 'Profil mis à jour avec succès ! ✨');
+      Alert.alert(t.common.success, t.profile.saveSuccess);
     } catch (error) {
       console.error('Erreur sauvegarde profil:', error);
-      Alert.alert('Erreur', `Impossible de sauvegarder le profil: ${error.message}`);
+      Alert.alert(t.common.error, t.profile.saveError);
     } finally {
       setSaving(false);
     }
@@ -167,12 +167,12 @@ export default function ProfileScreen({ navigation, user }) {
 
   const handleSignOut = async () => {
     Alert.alert(
-      'Déconnexion',
-      'Êtes-vous sûr(e) de vouloir vous déconnecter ?',
+      t.profile.signOut,
+      t.profile.signOutConfirm,
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t.common.cancel, style: 'cancel' },
         {
-          text: 'Déconnexion',
+          text: t.profile.signOut,
           style: 'destructive',
           onPress: async () => {
             await supabase.auth.signOut();
@@ -216,9 +216,9 @@ export default function ProfileScreen({ navigation, user }) {
 
       if (result.success) {
         Alert.alert(
-          '✅ Rapport généré',
-          'Votre rapport médical a été créé avec succès !',
-          [{ text: 'OK' }]
+          t.common.success,
+          t.profile.reportSuccess,
+          [{ text: t.common.ok }]
         );
       } else {
         throw new Error(result.error);
@@ -226,9 +226,9 @@ export default function ProfileScreen({ navigation, user }) {
     } catch (error) {
       console.error('Erreur génération PDF:', error);
       Alert.alert(
-        'Erreur',
-        'Impossible de générer le rapport. Veuillez réessayer.',
-        [{ text: 'OK' }]
+        t.common.error,
+        t.profile.reportError,
+        [{ text: t.common.ok }]
       );
     } finally {
       setLoading(false);
@@ -320,7 +320,7 @@ export default function ProfileScreen({ navigation, user }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={COLORS.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Mon Profil</Text>
+        <Text style={styles.headerTitle}>{t.profile.title}</Text>
         <TouchableOpacity onPress={saveProfile} disabled={saving}>
           {saving ? (
             <ActivityIndicator size="small" color={COLORS.primary} />
@@ -333,17 +333,17 @@ export default function ProfileScreen({ navigation, user }) {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Email */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informations personnelles</Text>
+          <Text style={styles.sectionTitle}>{t.profile.title}</Text>
           
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email</Text>
+            <Text style={styles.label}>{t.profile.email}</Text>
             <View style={styles.disabledInput}>
               <Text style={styles.disabledText}>{profile.email}</Text>
             </View>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Âge</Text>
+            <Text style={styles.label}>{t.profile.age}</Text>
             <TextInput
               style={styles.input}
               value={profile.age}
@@ -357,8 +357,8 @@ export default function ProfileScreen({ navigation, user }) {
 
         {/* Stade de ménopause */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Mon parcours</Text>
-          <Text style={styles.label}>Stade de ménopause</Text>
+          <Text style={styles.sectionTitle}>{t.profile.menopauseStage}</Text>
+          <Text style={styles.label}>{t.profile.menopauseStage}</Text>
           
           {menopauseStages.map((stage) => (
             <TouchableOpacity
@@ -384,7 +384,7 @@ export default function ProfileScreen({ navigation, user }) {
 
         {/* Objectifs */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Mes objectifs</Text>
+          <Text style={styles.sectionTitle}>{t.profile.goals}</Text>
           <Text style={styles.subtitle}>Sélectionne ce sur quoi tu souhaites te concentrer</Text>
           
           <View style={styles.goalsGrid}>
@@ -420,7 +420,7 @@ export default function ProfileScreen({ navigation, user }) {
 
         {/* Langue */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Préférences</Text>
+          <Text style={styles.sectionTitle}>{t.profile.settings}</Text>
           
           <TouchableOpacity
             style={styles.settingRow}
@@ -428,10 +428,10 @@ export default function ProfileScreen({ navigation, user }) {
           >
             <View style={styles.settingLeft}>
               <Ionicons name="language" size={22} color={COLORS.textSecondary} />
-              <Text style={styles.settingLabel}>Langue</Text>
+              <Text style={styles.settingLabel}>{t.profile.language}</Text>
             </View>
             <View style={styles.settingRight}>
-              <Text style={styles.settingValue}>{language === 'fr' ? 'Français' : 'English'}</Text>
+              <Text style={styles.settingValue}>{language === 'fr' ? t.profile.french : t.profile.english}</Text>
               <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
             </View>
           </TouchableOpacity>
@@ -441,7 +441,7 @@ export default function ProfileScreen({ navigation, user }) {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="medkit" size={24} color={COLORS.text} />
-            <Text style={styles.sectionTitle}>Traitement hormonal (THS)</Text>
+            <Text style={styles.sectionTitle}>{t.profile.hormoneTreatment}</Text>
           </View>
           
           {treatment ? (
@@ -449,7 +449,7 @@ export default function ProfileScreen({ navigation, user }) {
               <View style={styles.treatmentHeader}>
                 <View style={styles.treatmentBadge}>
                   <Ionicons name="checkmark-circle" size={16} color={COLORS.success} />
-                  <Text style={styles.treatmentBadgeText}>Traitement actif</Text>
+                  <Text style={styles.treatmentBadgeText}>{t.profile.treatmentActive}</Text>
                 </View>
                 <TouchableOpacity onPress={() => setShowTreatmentModal(true)}>
                   <Ionicons name="create-outline" size={20} color={COLORS.primary} />
@@ -458,25 +458,25 @@ export default function ProfileScreen({ navigation, user }) {
 
               <View style={styles.treatmentInfo}>
                 <View style={styles.treatmentRow}>
-                  <Text style={styles.treatmentLabel}>Type</Text>
+                  <Text style={styles.treatmentLabel}>{t.profile.treatmentType}</Text>
                   <Text style={styles.treatmentValue}>
                     {getTreatmentTypeLabel(treatment.treatment_type)}
                   </Text>
                 </View>
                 {treatment.treatment_name && (
                   <View style={styles.treatmentRow}>
-                    <Text style={styles.treatmentLabel}>Médicament</Text>
+                    <Text style={styles.treatmentLabel}>{t.profile.medication}</Text>
                     <Text style={styles.treatmentValue}>{treatment.treatment_name}</Text>
                   </View>
                 )}
                 {treatment.dosage && (
                   <View style={styles.treatmentRow}>
-                    <Text style={styles.treatmentLabel}>Dosage</Text>
+                    <Text style={styles.treatmentLabel}>{t.profile.dosage}</Text>
                     <Text style={styles.treatmentValue}>{treatment.dosage}</Text>
                   </View>
                 )}
                 <View style={styles.treatmentRow}>
-                  <Text style={styles.treatmentLabel}>Début</Text>
+                  <Text style={styles.treatmentLabel}>{t.profile.startDate}</Text>
                   <Text style={styles.treatmentValue}>
                     {new Date(treatment.start_date).toLocaleDateString('fr-FR', {
                       day: 'numeric',
@@ -486,9 +486,9 @@ export default function ProfileScreen({ navigation, user }) {
                   </Text>
                 </View>
                 <View style={styles.treatmentRow}>
-                  <Text style={styles.treatmentLabel}>Durée</Text>
+                  <Text style={styles.treatmentLabel}>{t.profile.duration}</Text>
                   <Text style={styles.treatmentValue}>
-                    {Math.floor((new Date() - new Date(treatment.start_date)) / (1000 * 60 * 60 * 24))} jours
+                    {Math.floor((new Date() - new Date(treatment.start_date)) / (1000 * 60 * 60 * 24))} {t.profile.durationDays}
                   </Text>
                 </View>
               </View>
@@ -502,9 +502,9 @@ export default function ProfileScreen({ navigation, user }) {
                 <Ionicons name="add-circle" size={32} color={COLORS.primary} />
               </View>
               <View style={styles.addTreatmentContent}>
-                <Text style={styles.addTreatmentTitle}>Ajouter un traitement</Text>
+                <Text style={styles.addTreatmentTitle}>{t.profile.addTreatment}</Text>
                 <Text style={styles.addTreatmentSubtitle}>
-                  Suivez votre traitement hormonal substitutif
+                  {t.profile.reportDescription}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -513,7 +513,7 @@ export default function ProfileScreen({ navigation, user }) {
 
         {/* Export PDF */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rapport médical</Text>
+          <Text style={styles.sectionTitle}>{t.profile.medicalReport}</Text>
           
           <TouchableOpacity
             style={styles.pdfButton}
@@ -524,9 +524,9 @@ export default function ProfileScreen({ navigation, user }) {
               <Ionicons name="document-text" size={24} color={COLORS.white} />
             </View>
             <View style={styles.pdfContent}>
-              <Text style={styles.pdfTitle}>Générer un rapport PDF</Text>
+              <Text style={styles.pdfTitle}>{t.profile.generateReport}</Text>
               <Text style={styles.pdfSubtitle}>
-                Créez un rapport détaillé pour votre médecin
+                {t.profile.reportDescription}
               </Text>
             </View>
             <Ionicons name="download" size={22} color={COLORS.primary} />
@@ -535,7 +535,7 @@ export default function ProfileScreen({ navigation, user }) {
 
         {/* Notifications */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notifications</Text>
+          <Text style={styles.sectionTitle}>{t.profile.notifications}</Text>
           
           <View style={styles.notificationCard}>
             <View style={styles.notificationHeader}>
@@ -543,9 +543,9 @@ export default function ProfileScreen({ navigation, user }) {
                 <Ionicons name="notifications" size={24} color={COLORS.primary} />
               </View>
               <View style={styles.notificationContent}>
-                <Text style={styles.notificationTitle}>Rappel quotidien</Text>
+                <Text style={styles.notificationTitle}>{t.profile.enableNotifications}</Text>
                 <Text style={styles.notificationSubtitle}>
-                  Check-in tous les jours à 21h
+                  {t.profile.notificationDescription}
                 </Text>
               </View>
               <Switch
@@ -601,7 +601,7 @@ export default function ProfileScreen({ navigation, user }) {
         {/* Déconnexion */}
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
           <Ionicons name="log-out-outline" size={22} color={COLORS.error} />
-          <Text style={styles.signOutText}>Déconnexion</Text>
+          <Text style={styles.signOutText}>{t.profile.signOut}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />

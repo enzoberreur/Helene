@@ -161,7 +161,7 @@ export default function HomeScreen({ navigation }) {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.headerContent}>
-            <Text style={styles.greeting}>Bonjour</Text>
+            <Text style={styles.greeting}>{t.home.hello}</Text>
             <Text style={styles.subtitle}>Comment allez-vous aujourd'hui ?</Text>
           </View>
           <TouchableOpacity
@@ -188,9 +188,9 @@ export default function HomeScreen({ navigation }) {
               </View>
               <Ionicons name="arrow-forward" size={22} color="rgba(255,255,255,0.8)" />
             </View>
-            <Text style={styles.primaryCardTitle}>Check-in quotidien</Text>
+            <Text style={styles.primaryCardTitle}>{t.home.dailyCheckIn}</Text>
             <Text style={styles.primaryCardSubtitle}>
-              Suivez votre bien-être jour après jour
+              {t.home.dailyCheckInSubtitle}
             </Text>
           </TouchableOpacity>
         </View>
@@ -228,9 +228,9 @@ export default function HomeScreen({ navigation }) {
                   <Ionicons name="rocket" size={48} color={COLORS.primary} />
                 </View>
               </View>
-              <Text style={styles.emptyStateTitle}>Commencez votre voyage</Text>
+              <Text style={styles.emptyStateTitle}>{t.home.emptyTitle}</Text>
               <Text style={styles.emptyStateText}>
-                Enregistrez votre premier check-in pour découvrir des insights personnalisés sur votre bien-être
+                {t.home.emptyDescription}
               </Text>
               <TouchableOpacity
                 style={styles.emptyStateCTA}
@@ -240,7 +240,7 @@ export default function HomeScreen({ navigation }) {
                 }}
                 activeOpacity={0.8}
               >
-                <Text style={styles.emptyStateCTAText}>Faire mon premier check-in</Text>
+                <Text style={styles.emptyStateCTAText}>{t.home.startCheckIn}</Text>
                 <Ionicons name="arrow-forward" size={20} color={COLORS.white} />
               </TouchableOpacity>
             </Animated.View>
@@ -339,9 +339,9 @@ export default function HomeScreen({ navigation }) {
               <View style={styles.chatIconBadge}>
                 <Ionicons name="sparkles" size={20} color={COLORS.primary} />
               </View>
-              <Text style={styles.chatCardTitle}>Parlez à Helene</Text>
+              <Text style={styles.chatCardTitle}>{t.home.talkToHelene}</Text>
               <Text style={styles.chatCardSubtitle}>
-                Obtenez des conseils personnalisés sur vos symptômes
+                {t.home.talkToHeleneSubtitle}
               </Text>
             </View>
             <Ionicons name="arrow-forward" size={22} color={COLORS.text} />
@@ -360,9 +360,9 @@ export default function HomeScreen({ navigation }) {
               <View style={[styles.chatIconBadge, { backgroundColor: '#FCECEF' }]}>
                 <Ionicons name="heart" size={20} color={COLORS.primary} />
               </View>
-              <Text style={styles.chatCardTitle}>Journal Émotionnel</Text>
+              <Text style={styles.chatCardTitle}>{t.home.emotionalJournal}</Text>
               <Text style={styles.chatCardSubtitle}>
-                Suivez vos émotions et visualisez vos tendances
+                {t.home.emotionalJournalSubtitle}
               </Text>
             </View>
             <Ionicons name="arrow-forward" size={22} color={COLORS.text} />
