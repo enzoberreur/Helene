@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useMemo } from 'react';
 import {
   View,
   Text,
@@ -39,11 +39,11 @@ export default function ProfileScreen({ navigation, user }) {
     goals: [],
   });
 
-  const menopauseStages = [
+  const menopauseStages = useMemo(() => [
     { value: 'perimenopause', label: t.profile.perimenopause },
     { value: 'menopause', label: t.profile.menopause },
     { value: 'postmenopause', label: t.profile.postmenopause },
-  ];
+  ], [t]);
 
   const availableGoals = [
     { id: 'sleep', label: 'Améliorer mon sommeil', icon: 'moon' },
