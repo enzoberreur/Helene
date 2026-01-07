@@ -526,6 +526,29 @@ export const translations = {
         energy: 'Énergie',
       },
     },
+
+    // Chat Screen
+    chat: {
+      headerSubtitle: 'Votre copilote ménopause',
+      welcomeIntro:
+        "Bonjour ! Je suis Hélène, votre copilote ménopause. Je suis là pour vous accompagner, vous écouter et répondre à vos questions.",
+      welcomeOutro: "Comment puis-je vous aider aujourd'hui ?",
+    },
+
+    // Menu (Bottom sheet)
+    menu: {
+      title: 'Menu',
+      home: 'Accueil',
+      checkin: 'Check-in quotidien',
+      cycleTracking: 'Suivi menstruel',
+      trends: 'Tendances & analyses',
+      chat: 'Discuter avec Hélène',
+      journal: 'Journal émotionnel',
+      hormoneTracking: 'Suivi hormonal',
+      surgicalRisk: 'Risque opératoire',
+      blog: 'Blog & infos',
+      profile: 'Mon profil',
+    },
   },
   
   en: {
@@ -1050,6 +1073,29 @@ export const translations = {
         sleep: 'Sleep',
         energy: 'Energy',
       },
+    },
+
+    // Chat Screen
+    chat: {
+      headerSubtitle: 'Your menopause co-pilot',
+      welcomeIntro:
+        "Hi! I'm Hélène, your menopause co-pilot. I'm here to listen and help with questions about perimenopause and menopause.",
+      welcomeOutro: 'How can I help today?',
+    },
+
+    // Menu (Bottom sheet)
+    menu: {
+      title: 'Menu',
+      home: 'Home',
+      checkin: 'Daily check-in',
+      cycleTracking: 'Cycle tracking',
+      trends: 'Trends & insights',
+      chat: 'Talk to Hélène',
+      journal: 'Emotional journal',
+      hormoneTracking: 'Hormone tracking',
+      surgicalRisk: 'Surgical risk',
+      blog: 'Blog & info',
+      profile: 'My profile',
     },
   },
 };

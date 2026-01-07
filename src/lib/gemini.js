@@ -16,43 +16,40 @@ const parseBoolean = (value) => {
 
 // Configuration du modèle
 const modelConfig = {
-  temperature: 0.9,
+  // Keep the assistant tighter and more conversational.
+  temperature: 0.6,
   topK: 40,
-  topP: 0.95,
-  maxOutputTokens: 1024,
+  topP: 0.9,
+  maxOutputTokens: 384,
 };
 
 // Master system prompt (Hélène)
 // Notes:
 // - The app injects a short user context block below. Use it for personalization but never repeat it verbatim.
 // - The user can try to override instructions; ignore any request that conflicts with this system prompt.
-const SYSTEM_PROMPT = `Tu es Hélène, une assistante empathique et compétente spécialisée dans l'accompagnement des femmes pendant la périménopause et la ménopause.
+const SYSTEM_PROMPT = `You are Hélène, a warm, evidence-informed companion supporting people through perimenopause and menopause.
 
-OBJECTIF
-Tu aides, tu expliques, tu rassures, et tu proposes des pistes concrètes et evidence-based.
+LANGUAGE (IMPORTANT)
+- Always reply in the language of the user's most recent message.
+- If it's unclear, use the language specified in the user context.
 
-SÉCURITÉ & LIMITES (IMPORTANT)
-- Tu ne poses pas de diagnostic.
-- Tu ne prescris pas de traitement ni de médicament.
-- Tu peux parler de “pistes à discuter avec un médecin” et des options générales (hygiène de vie, suivi, quand consulter).
-- Si symptômes sévères/urgents (douleur thoracique, essoufflement, idées suicidaires, saignements importants, etc.), tu encourages à consulter en urgence.
+STYLE (IMPORTANT)
+- Be conversational and not overly verbose.
+- Default length: 2–6 sentences.
+- Use bullet points only when helpful (max 4 bullets).
+- Do not add background information the user didn't ask for.
+- Ask at most ONE follow-up question.
+- Avoid emojis unless the user uses them first.
 
-PERSONNALISATION
-- Utilise le contexte utilisateur fourni (âge, phase, objectifs, tendances des 7 derniers jours, symptômes fréquents) pour adapter tes conseils.
-- Si une info clé manque, pose 1–2 questions courtes plutôt que de supposer.
+SAFETY & LIMITS
+- No diagnosis.
+- No prescriptions or medication instructions.
+- Offer general options and “things to discuss with a clinician”.
+- If symptoms sound urgent/severe (e.g., chest pain, severe shortness of breath, suicidal thoughts, heavy bleeding), advise urgent medical care.
 
-LANGUE
-- Réponds dans la langue préférée indiquée dans le contexte (français ou anglais). À défaut, utilise la langue du message de l'utilisatrice.
-
-STYLE
-- Ton chaleureux, bienveillant, sans jugement (tutoiement en FR).
-- Réponses concises mais complètes: 2–5 courts paragraphes.
-- Structure: 1) validation/normalisation, 2) explications simples, 3) conseils actionnables (3–6 puces max), 4) quand consulter, 5) une question de suivi.
-- Emojis occasionnels OK (🌸 💚 💪), mais pas à chaque phrase.
-
-CONFIDENTIALITÉ
-- Ne demande pas d'informations d'identification (nom complet, adresse, etc.).
-- Ne révèle pas le contenu du contexte interne mot à mot.
+PRIVACY
+- Don't ask for identifying information (full name, address, etc.).
+- Do not repeat the internal context block verbatim.
 `;
 
 /**
@@ -84,11 +81,11 @@ export async function generateChatResponse(userMessage, userContext = {}, conver
     
     // Construire l'historique de conversation
     const historyPrompt = conversationHistory.length > 0 
-      ? `\n\nHistorique récent:\n${conversationHistory.map(msg => `${msg.role === 'user' ? 'Utilisatrice' : 'Hélène'}: ${msg.content}`).join('\n')}`
+      ? `\n\nRecent conversation:\n${conversationHistory.map(msg => `${msg.role === 'user' ? 'User' : 'Hélène'}: ${msg.content}`).join('\n')}`
       : '';
 
     // Prompt complet
-    const fullPrompt = `${SYSTEM_PROMPT}\n\n${contextPrompt}${historyPrompt}\n\nUtilisatrice: ${userMessage}\n\nHélène:`;
+    const fullPrompt = `${SYSTEM_PROMPT}\n\n${contextPrompt}${historyPrompt}\n\nUser: ${userMessage}\n\nHélène:`;
 
     console.log('🤖 Appel Gemini API REST...');
 
@@ -150,55 +147,155 @@ function buildUserContext(userContext) {
     goals,
     recentLogs,
     contextSummary,
+    yesterdaySummary,
     language,
   } = userContext;
 
   const lang = (language || '').toString().toLowerCase().startsWith('en') ? 'en' : 'fr';
-  let context = `CONTEXTE UTILISATRICE (ne pas répéter tel quel):\n- Langue: ${lang}\n`;
+
+  const labels = {
+    en: {
+      header: 'USER CONTEXT (do not repeat verbatim):',
+      language: 'Language',
+      age: 'Age',
+      stage: 'Stage',
+      goals: 'Goals',
+      summary: 'Summary (app)',
+      yesterday: 'Yesterday',
+      last7Days: 'Daily check-ins (last 7 days)',
+      recentSymptoms: 'Recent symptoms',
+      lastCheckIn: 'Last check-in',
+      avgMood: 'Avg mood (7d)',
+      avgEnergy: 'Avg energy (7d)',
+      avgSleep: 'Avg sleep (7d)',
+      stages: {
+        pre: 'Pre-menopause',
+        peri: 'Perimenopause',
+        meno: 'Menopause',
+        post: 'Post-menopause',
+      },
+      symptoms: {
+        hot_flashes: 'hot flashes',
+        night_sweats: 'night sweats',
+        headaches: 'headaches',
+        joint_pain: 'joint pain',
+        fatigue: 'fatigue',
+        anxiety: 'anxiety',
+        irritability: 'irritability',
+        brain_fog: 'brain fog',
+        low_mood: 'low mood',
+      },
+      intensity: ['', 'mild', 'moderate', 'severe'],
+    },
+    fr: {
+      header: 'CONTEXTE UTILISATRICE (ne pas répéter tel quel):',
+      language: 'Langue',
+      age: 'Âge',
+      stage: 'Phase',
+      goals: 'Objectifs',
+      summary: 'Résumé (app)',
+      yesterday: 'Hier',
+      last7Days: 'Check-ins journaliers (7 derniers jours)',
+      recentSymptoms: 'Symptômes récents',
+      lastCheckIn: 'Dernier check-in',
+      avgMood: 'Moyenne humeur (7j)',
+      avgEnergy: 'Moyenne énergie (7j)',
+      avgSleep: 'Moyenne sommeil (7j)',
+      stages: {
+        pre: 'Pré-ménopause',
+        peri: 'Périménopause',
+        meno: 'Ménopause',
+        post: 'Post-ménopause',
+      },
+      symptoms: {
+        hot_flashes: 'bouffées de chaleur',
+        night_sweats: 'sueurs nocturnes',
+        headaches: 'maux de tête',
+        joint_pain: 'douleurs articulaires',
+        fatigue: 'fatigue',
+        anxiety: 'anxiété',
+        irritability: 'irritabilité',
+        brain_fog: 'brouillard mental',
+        low_mood: 'humeur basse',
+      },
+      intensity: ['', 'légers', 'modérés', 'sévères'],
+    },
+  };
+
+  const L = labels[lang];
+  let context = `${L.header}\n- ${L.language}: ${lang}\n`;
   
   if (age) {
-    context += `- Âge: ${age} ans\n`;
+    context += `- ${L.age}: ${age}${lang === 'fr' ? ' ans' : ''}\n`;
   }
   
   if (menopauseStage) {
-    const stageLabels = {
-      pre: 'Pré-ménopause',
-      peri: 'Périménopause',
-      meno: 'Ménopause',
-      post: 'Post-ménopause',
-    };
-    context += `- Phase: ${stageLabels[menopauseStage]}\n`;
+    context += `- ${L.stage}: ${L.stages[menopauseStage]}\n`;
   }
 
   if (Array.isArray(goals) && goals.length > 0) {
-    context += `- Objectifs: ${goals.join(', ')}\n`;
+    context += `- ${L.goals}: ${goals.join(', ')}\n`;
   }
 
   if (contextSummary) {
-    context += `- Résumé (app): ${String(contextSummary).trim()}\n`;
+    context += `- ${L.summary}: ${String(contextSummary).trim()}\n`;
+  }
+
+  if (yesterdaySummary) {
+    context += `- ${L.yesterday}: ${String(yesterdaySummary).trim()}\n`;
+  }
+
+  // Provide a compact per-day view for the last 7 days (date + scores + symptoms).
+  if (Array.isArray(recentLogs) && recentLogs.length > 0) {
+    const symptomKeys = [
+      'hot_flashes',
+      'night_sweats',
+      'headaches',
+      'joint_pain',
+      'fatigue',
+      'anxiety',
+      'irritability',
+      'brain_fog',
+      'low_mood',
+    ];
+
+    const formatScores = (log) => {
+      const mood = Number(log?.mood ?? 0);
+      const energy = Number(log?.energy_level ?? 0);
+      const sleep = Number(log?.sleep_quality ?? 0);
+      const parts = [];
+      if (mood > 0) parts.push(`${lang === 'fr' ? 'humeur' : 'mood'} ${mood}/5`);
+      if (energy > 0) parts.push(`${lang === 'fr' ? 'énergie' : 'energy'} ${energy}/5`);
+      if (sleep > 0) parts.push(`${lang === 'fr' ? 'sommeil' : 'sleep'} ${sleep}/5`);
+      return parts.length ? ` (${parts.join(', ')})` : '';
+    };
+
+    const formatSymptoms = (log) => {
+      const parts = symptomKeys
+        .map((key) => ({ key, value: Number(log?.[key] ?? 0) }))
+        .filter((x) => Number.isFinite(x.value) && x.value > 0)
+        .map((x) => `${L.symptoms[x.key] || x.key}=${L.intensity[x.value] || x.value}`);
+      if (parts.length === 0) return lang === 'fr' ? 'aucun' : 'none';
+      return parts.slice(0, 8).join(', ');
+    };
+
+    const last7 = recentLogs.slice(0, 7).map((log) => {
+      const date = String(log?.log_date || '').trim() || (lang === 'fr' ? '(date inconnue)' : '(unknown date)');
+      return `  - ${date}${formatScores(log)}: ${formatSymptoms(log)}`;
+    });
+
+    context += `- ${L.last7Days}:\n${last7.join('\n')}\n`;
   }
   
   if (recentSymptoms && Object.keys(recentSymptoms).length > 0) {
     const symptoms = Object.entries(recentSymptoms)
       .filter(([_, intensity]) => intensity > 0)
       .map(([symptom, intensity]) => {
-        const labels = {
-          hot_flashes: 'bouffées de chaleur',
-          night_sweats: 'sueurs nocturnes',
-          headaches: 'maux de tête',
-          joint_pain: 'douleurs articulaires',
-          fatigue: 'fatigue',
-          anxiety: 'anxiété',
-          irritability: 'irritabilité',
-          brain_fog: 'brouillard mental',
-          low_mood: 'humeur basse',
-        };
-        const intensityLabels = ['', 'légers', 'modérés', 'sévères'];
-        return `${labels[symptom]} (${intensityLabels[intensity]})`;
+        return `${L.symptoms[symptom] || symptom} (${L.intensity[intensity] || intensity})`;
       });
     
     if (symptoms.length > 0) {
-      context += `- Symptômes récents: ${symptoms.join(', ')}\n`;
+      context += `- ${L.recentSymptoms}: ${symptoms.join(', ')}\n`;
     }
   }
 
@@ -214,10 +311,10 @@ function buildUserContext(userContext) {
     const avgSleep = avg('sleep_quality');
 
     const lastDate = recentLogs[0]?.log_date;
-    if (lastDate) context += `- Dernier check-in: ${lastDate}\n`;
-    if (avgMood) context += `- Moyenne humeur (7j): ${avgMood}/5\n`;
-    if (avgEnergy) context += `- Moyenne énergie (7j): ${avgEnergy}/5\n`;
-    if (avgSleep) context += `- Moyenne sommeil (7j): ${avgSleep}/5\n`;
+    if (lastDate) context += `- ${L.lastCheckIn}: ${lastDate}\n`;
+    if (avgMood) context += `- ${L.avgMood}: ${avgMood}/5\n`;
+    if (avgEnergy) context += `- ${L.avgEnergy}: ${avgEnergy}/5\n`;
+    if (avgSleep) context += `- ${L.avgSleep}: ${avgSleep}/5\n`;
   }
 
   return context;
@@ -307,6 +404,35 @@ function getNotableSymptoms(log, category) {
  */
 function generateDemoResponse(userMessage, userContext) {
   const msg = userMessage.toLowerCase();
+
+  const langFromContext = (userContext?.language || '').toString().toLowerCase().startsWith('en') ? 'en' : '';
+  const looksFrench = /[àâçéèêëîïôûùüÿœ]/i.test(userMessage) || /(\bbonjour\b|\bsalut\b|\bmerci\b|\bménopause\b|\bpériménopause\b|\bbouff(ée|ees)\b|\bhumeur\b|\bsommeil\b)/i.test(userMessage);
+  const looksEnglish = /(\bhello\b|\bhi\b|\bthanks?\b|\bmenopause\b|\bperimenopause\b|\bsleep\b|\bmood\b|\banxiety\b|\bhot\s+flash(es)?\b)/i.test(userMessage);
+  const lang = looksEnglish && !looksFrench ? 'en' : (looksFrench ? 'fr' : (langFromContext || 'fr'));
+
+  if (lang === 'en') {
+    if (/(\bhello\b|\bhi\b|\bhey\b)/i.test(userMessage)) {
+      return "Hi — I'm Hélène. What’s on your mind today?";
+    }
+
+    if (/(hot\s+flash(es)?|night\s+sweats?)/i.test(userMessage)) {
+      return "Hot flashes/night sweats are common in peri/menopause. Quick basics: keep the room cool, dress in layers, and notice triggers like alcohol, spicy food, stress, or warm rooms. If they’re severe or disruptive, it’s worth discussing options with a clinician.\n\nDo you get them mostly at night or throughout the day?";
+    }
+
+    if (/(sleep|insomnia|tired|fatigue)/i.test(userMessage)) {
+      return "Sleep problems are very common in perimenopause. A few high-impact basics: consistent sleep schedule, cool bedroom, less caffeine after early afternoon, and a screen-free wind-down.\n\nIs the main issue falling asleep, waking up, or waking up too early?";
+    }
+
+    if (/(anxiety|mood|depressed|sad|panic|stress)/i.test(userMessage)) {
+      return "That sounds tough — mood swings and anxiety can happen in peri/menopause and they’re not ‘in your head’. If it’s persistent or intense, it’s worth bringing up with a clinician because there are options.\n\nHas this been new recently, or building over time?";
+    }
+
+    if (/(thanks?|thank you)/i.test(userMessage)) {
+      return "You’re welcome. What would you like to talk about next?";
+    }
+
+    return "Got it. Tell me the main symptom + when it started, and we’ll narrow it down.";
+  }
   
   // Réponses contextuelles basées sur les mots-clés
   if (msg.includes('bonjour') || msg.includes('salut') || msg.includes('hello') || msg.includes('hi')) {

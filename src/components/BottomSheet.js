@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useContext, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,16 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import { hapticFeedback } from '../utils/hapticFeedback';
+import { LanguageContext } from '../../App';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-const BOTTOM_SHEET_HEIGHT = SCREEN_HEIGHT * 0.75;
+const BOTTOM_SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
 
 export default function BottomSheet({ visible, onClose, navigation }) {
+  const context = useContext(LanguageContext) || {};
+  const t = context.t || {};
+  const tm = t?.menu || {};
+
   const translateY = useRef(new Animated.Value(BOTTOM_SHEET_HEIGHT)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -63,72 +68,62 @@ export default function BottomSheet({ visible, onClose, navigation }) {
   const menuItems = [
     {
       id: 'home',
-      label: 'Accueil',
+      label: tm.home ?? 'Home',
       icon: 'home',
-      color: COLORS.primary,
       screen: 'home',
     },
     {
       id: 'checkin',
-      label: 'Daily Check-In',
+      label: tm.checkin ?? 'Daily check-in',
       icon: 'create',
-      color: '#FF6B6B',
       screen: 'checkin',
     },
     {
       id: 'cycleTracking',
-      label: 'Suivi Menstruel',
+      label: tm.cycleTracking ?? 'Cycle tracking',
       icon: 'calendar',
-      color: '#E83E73',
       screen: 'cycleTracking',
     },
     {
       id: 'trends',
-      label: 'Tendances & Analyses',
+      label: tm.trends ?? 'Trends & insights',
       icon: 'stats-chart',
-      color: '#4ECDC4',
       screen: 'trends',
     },
     {
       id: 'chat',
-      label: 'Discuter avec Hélène',
+      label: tm.chat ?? 'Talk to Hélène',
       icon: 'sparkles',
-      color: '#FFD93D',
       screen: 'chat',
     },
     {
       id: 'journal',
-      label: 'Journal Émotionnel',
+      label: tm.journal ?? 'Emotional journal',
       icon: 'heart',
-      color: '#F38BA8',
       screen: 'journal',
     },
     {
       id: 'hormoneTracking',
-      label: 'Taux Hormonaux',
+      label: tm.hormoneTracking ?? 'Hormone tracking',
       icon: 'flask',
-      color: '#95E1D3',
       screen: 'hormoneTracking',
     },
     {
       id: 'surgicalRisk',
-      label: 'Risque Opératoire',
+      label: tm.surgicalRisk ?? 'Surgical risk',
       icon: 'medical',
-      color: '#A8DADC',
       screen: 'surgicalRisk',
     },
     {
       id: 'blog',
-      label: 'Blog & Informations',
+      label: tm.blog ?? 'Blog & info',
       icon: 'book',
-      color: '#B4A7D6',
       screen: 'blog',
     },
     {
       id: 'profile',
-      label: 'Mon Profil',
+      label: tm.profile ?? 'Profile',
       icon: 'person',
-      color: '#FF8B94',
       screen: 'profile',
     },
   ];
@@ -151,39 +146,41 @@ export default function BottomSheet({ visible, onClose, navigation }) {
                 },
               ]}
             >
-              {/* Handle */}
-              <View style={styles.handleContainer}>
-                <View style={styles.handle} />
-              </View>
-
               {/* Header */}
               <View style={styles.header}>
-                <Text style={styles.headerTitle}>Menu</Text>
                 <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color={COLORS.text} />
+                  <Ionicons name="close" size={20} color={COLORS.text} />
                 </TouchableOpacity>
+                <Text style={styles.headerTitle}>{tm.title ?? 'Menu'}</Text>
               </View>
 
               {/* Menu Items */}
               <ScrollView
                 style={styles.menuScrollView}
+                contentContainerStyle={styles.menuScrollContent}
                 showsVerticalScrollIndicator={false}
                 bounces={false}
               >
-                <View style={styles.menuGrid}>
-                  {menuItems.map((item, index) => (
-                    <TouchableOpacity
-                      key={item.id}
-                      style={styles.menuItem}
-                      onPress={() => handleNavigate(item.screen)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.menuIcon, { backgroundColor: item.color + '20' }]}>
-                        <Ionicons name={item.icon} size={24} color={item.color} />
-                      </View>
-                      <Text style={styles.menuLabel}>{item.label}</Text>
-                    </TouchableOpacity>
-                  ))}
+                <View style={styles.menuCards}>
+                  {menuItems.map((item, index) => {
+                    const isLast = index === menuItems.length - 1;
+                    return (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={[styles.menuCard, !isLast && styles.menuCardSpacing]}
+                        onPress={() => handleNavigate(item.screen)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={styles.menuCardLeft}>
+                          <View style={styles.menuCardIcon}>
+                            <Ionicons name={item.icon} size={20} color={COLORS.primary} />
+                          </View>
+                          <Text style={styles.menuCardLabel}>{item.label}</Text>
+                        </View>
+                        <Ionicons name="arrow-forward" size={20} color={COLORS.textSecondary} />
+                      </TouchableOpacity>
+                    );
+                  })}
                 </View>
               </ScrollView>
             </Animated.View>
@@ -197,40 +194,30 @@ export default function BottomSheet({ visible, onClose, navigation }) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
     justifyContent: 'flex-end',
   },
   bottomSheet: {
     height: BOTTOM_SHEET_HEIGHT,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.background,
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
     ...SHADOWS.md,
   },
-  handleContainer: {
-    alignItems: 'center',
-    paddingTop: SPACING.md,
-    paddingBottom: SPACING.sm,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: COLORS.gray[300],
-    borderRadius: 2,
-  },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    paddingTop: SPACING.xl,
+    paddingBottom: SPACING.md,
+    backgroundColor: COLORS.background,
   },
   headerTitle: {
-    fontSize: 22,
-    fontFamily: FONTS.body.bold,
+    fontSize: 20,
+    fontFamily: FONTS.heading.regular,
     color: COLORS.text,
+    marginLeft: SPACING.sm,
   },
   closeButton: {
     width: 40,
@@ -241,36 +228,46 @@ const styles = StyleSheet.create({
   menuScrollView: {
     flex: 1,
   },
-  menuGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  menuScrollContent: {
+    paddingBottom: SPACING.xxxl,
+    paddingTop: SPACING.sm,
+  },
+  menuCards: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.md,
+  },
+  menuCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: RADIUS.lg,
     paddingHorizontal: SPACING.lg,
     paddingVertical: SPACING.lg,
-    gap: SPACING.md,
-  },
-  menuItem: {
-    width: '47%',
-    aspectRatio: 1.2,
-    backgroundColor: COLORS.background,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.md,
+    justifyContent: 'space-between',
     ...SHADOWS.sm,
   },
-  menuIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  menuCardSpacing: {
+    marginBottom: SPACING.md,
+  },
+  menuCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  menuCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: SPACING.md,
   },
-  menuLabel: {
-    fontSize: 14,
+  menuCardLabel: {
+    fontSize: 16,
     fontFamily: FONTS.body.semibold,
     color: COLORS.text,
-    textAlign: 'center',
-    lineHeight: 18,
   },
 });

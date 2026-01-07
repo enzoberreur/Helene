@@ -240,8 +240,9 @@ export default function HomeScreen({ navigation }) {
               hapticFeedback.light();
               setIsBottomSheetVisible(true);
             }}
+            activeOpacity={0.7}
           >
-            <Ionicons name="menu" size={28} color={COLORS.text} />
+            <Ionicons name="reorder-three-outline" size={26} color={COLORS.text} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
             <Text style={styles.greeting}>{t.home.hello}</Text>
@@ -533,9 +534,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   menuButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'transparent',
     justifyContent: 'center',
+    alignItems: 'center',
     marginTop: 4,
   },
   headerContent: {

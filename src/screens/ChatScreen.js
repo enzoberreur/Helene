@@ -19,16 +19,23 @@ import { generateChatResponse } from '../lib/gemini';
 import { LanguageContext } from '../../App';
 
 export default function ChatScreen({ navigation, user }) {
-  const { t, language } = useContext(LanguageContext);
+  const context = useContext(LanguageContext) || {};
+  const t = context.t || {};
+  const language = context.language || 'fr';
   const flatListRef = useRef(null);
+
+  const buildWelcomeMessage = (summary) => {
+    const tc = t?.chat || {};
+    const intro = tc.welcomeIntro || "Hi! I'm Hélène.";
+    const outro = tc.welcomeOutro || 'How can I help today?';
+    return summary ? `${intro}\n\n${summary}\n\n${outro}` : `${intro}\n\n${outro}`;
+  };
   
   const [messages, setMessages] = useState([
     {
       id: '1',
       role: 'assistant',
-      content: `Bonjour ! 🌸 Je suis Hélène, votre copilote ménopause. Je suis là pour vous accompagner, vous écouter et répondre à vos questions sur cette période de votre vie.
-
-Comment puis-je vous aider aujourd'hui ?`,
+      content: buildWelcomeMessage(),
       timestamp: new Date().toISOString(),
     },
   ]);
@@ -50,6 +57,8 @@ Comment puis-je vous aider aujourd'hui ?`,
         return;
       }
 
+      const isEnglish = (language || '').toString().toLowerCase().startsWith('en');
+
       // Charger le profil
       const { data: profile } = await supabase
         .from('profiles')
@@ -68,22 +77,57 @@ Comment puis-je vous aider aujourd'hui ?`,
         .gte('log_date', sevenDaysAgo.toISOString().split('T')[0])
         .order('log_date', { ascending: false });
 
+      const intensityLabels = isEnglish
+        ? ['', 'mild', 'moderate', 'severe']
+        : ['', 'léger', 'modéré', 'sévère'];
+
       // Analyser les symptômes des 7 derniers jours
       let contextSummary = '';
       let recentSymptoms = {};
+      let yesterdaySummary = '';
       if (recentLogs && recentLogs.length > 0) {
         const symptoms = ['hot_flashes', 'night_sweats', 'headaches', 'joint_pain', 'fatigue', 'anxiety', 'irritability', 'brain_fog', 'low_mood'];
         const symptomLabels = {
-          hot_flashes: 'bouffées de chaleur',
-          night_sweats: 'sueurs nocturnes',
-          headaches: 'maux de tête',
-          joint_pain: 'douleurs articulaires',
-          fatigue: 'fatigue',
-          anxiety: 'anxiété',
-          irritability: 'irritabilité',
-          brain_fog: 'brouillard mental',
-          low_mood: 'humeur basse',
+          hot_flashes: isEnglish ? 'hot flashes' : 'bouffées de chaleur',
+          night_sweats: isEnglish ? 'night sweats' : 'sueurs nocturnes',
+          headaches: isEnglish ? 'headaches' : 'maux de tête',
+          joint_pain: isEnglish ? 'joint pain' : 'douleurs articulaires',
+          fatigue: isEnglish ? 'fatigue' : 'fatigue',
+          anxiety: isEnglish ? 'anxiety' : 'anxiété',
+          irritability: isEnglish ? 'irritability' : 'irritabilité',
+          brain_fog: isEnglish ? 'brain fog' : 'brouillard mental',
+          low_mood: isEnglish ? 'low mood' : 'humeur basse',
         };
+
+        // Build “yesterday” summary if we have a log
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayDate = yesterday.toISOString().split('T')[0];
+        const yesterdayLog = recentLogs.find(l => String(l?.log_date) === yesterdayDate);
+        if (yesterdayLog) {
+          const symptomParts = symptoms
+            .map(key => ({
+              key,
+              value: Number(yesterdayLog?.[key] ?? 0),
+            }))
+            .filter(x => Number.isFinite(x.value) && x.value > 0)
+            .map(x => `${symptomLabels[x.key]} (${intensityLabels[x.value] || x.value})`);
+
+          const mood = Number(yesterdayLog?.mood ?? 0);
+          const energy = Number(yesterdayLog?.energy_level ?? 0);
+          const sleep = Number(yesterdayLog?.sleep_quality ?? 0);
+
+          const scoreParts = [];
+          if (mood > 0) scoreParts.push(`${isEnglish ? 'mood' : 'humeur'} ${mood}/5`);
+          if (energy > 0) scoreParts.push(`${isEnglish ? 'energy' : 'énergie'} ${energy}/5`);
+          if (sleep > 0) scoreParts.push(`${isEnglish ? 'sleep' : 'sommeil'} ${sleep}/5`);
+
+          const header = isEnglish ? 'Yesterday' : 'Hier';
+          const scores = scoreParts.length ? ` (${scoreParts.join(', ')})` : '';
+          yesterdaySummary = symptomParts.length
+            ? `${header}${scores}: ${symptomParts.join(', ')}.`
+            : `${header}${scores}: ${isEnglish ? 'no symptoms logged.' : 'aucun symptôme noté.'}`;
+        }
 
         const symptomCounts = {};
         symptoms.forEach(symptom => {
@@ -105,13 +149,17 @@ Comment puis-je vous aider aujourd'hui ?`,
           .map(([symptom, count]) => `${symptomLabels[symptom]} (${count}x)`);
 
         if (topSymptoms.length > 0) {
-          contextSummary = `Cette semaine, vous avez ressenti : ${topSymptoms.join(', ')}.`;
+          contextSummary = isEnglish
+            ? `This week, you felt: ${topSymptoms.join(', ')}.`
+            : `Cette semaine, vous avez ressenti : ${topSymptoms.join(', ')}.`;
         }
 
         // Calculer l'humeur moyenne
         const avgMood = recentLogs.reduce((sum, log) => sum + (log.mood || 0), 0) / recentLogs.length;
         if (avgMood > 0) {
-          contextSummary += ` Votre humeur moyenne est de ${avgMood.toFixed(1)}/5.`;
+          contextSummary += isEnglish
+            ? ` Your average mood is ${avgMood.toFixed(1)}/5.`
+            : ` Votre humeur moyenne est de ${avgMood.toFixed(1)}/5.`;
         }
       }
 
@@ -122,6 +170,7 @@ Comment puis-je vous aider aujourd'hui ?`,
         recentLogs: recentLogs || [],
         recentSymptoms,
         contextSummary,
+        yesterdaySummary,
         language,
       });
 
@@ -130,11 +179,7 @@ Comment puis-je vous aider aujourd'hui ?`,
         setMessages([{
           id: '1',
           role: 'assistant',
-          content: `Bonjour ! 🌸 Je suis Hélène, votre copilote ménopause.
-
-${contextSummary}
-
-Comment puis-je vous aider aujourd'hui ?`,
+          content: buildWelcomeMessage(contextSummary),
           timestamp: new Date().toISOString(),
         }]);
       }
@@ -229,10 +274,13 @@ Comment puis-je vous aider aujourd'hui ?`,
             {item.content}
           </Text>
           <Text style={[styles.timestamp, isUser ? styles.userTimestamp : styles.assistantTimestamp]}>
-            {new Date(item.timestamp).toLocaleTimeString('fr-FR', { 
+            {new Date(item.timestamp).toLocaleTimeString(
+              (language || '').toString().toLowerCase().startsWith('en') ? 'en-US' : 'fr-FR',
+              {
               hour: '2-digit', 
               minute: '2-digit' 
-            })}
+              }
+            )}
           </Text>
         </View>
 
@@ -254,7 +302,7 @@ Comment puis-je vous aider aujourd'hui ?`,
           </View>
           <View>
             <Text style={styles.headerTitle}>Hélène</Text>
-            <Text style={styles.headerSubtitle}>Votre copilote ménopause</Text>
+            <Text style={styles.headerSubtitle}>{t?.chat?.headerSubtitle || 'Your menopause co-pilot'}</Text>
           </View>
         </View>
         <View style={styles.placeholder} />
